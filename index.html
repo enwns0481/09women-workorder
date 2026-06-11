@@ -433,8 +433,9 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
     <div class="card-body">
       <div class="rate-row">
         <div class="rate-label">환율</div>
-        <input class="rate-input" type="number" id="mini_rate" value="225" readonly style="opacity:0.6;cursor:default;">
-        <div class="rate-unit">원 / 元 (고정)</div>
+        <input class="rate-input" type="number" id="mini_rate" value="225" readonly style="opacity:0.6;cursor:default;" oninput="calcMini()">
+        <button id="rateLockBtn" onclick="toggleRateLock()" style="background:var(--accent);border:none;border-radius:4px;padding:5px 10px;font-size:11px;font-weight:700;color:#111;cursor:pointer;font-family:var(--font-kr);white-space:nowrap;">🔒 고정</button>
+        <div class="rate-unit">원/元</div>
       </div>
       <div class="field-row">
         <div class="field-group">
@@ -455,7 +456,10 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
         <div class="calc-row"><div class="calc-label">예상 판가 ×3.0</div><div class="calc-value" id="mini_x3">—</div></div>
         <div class="final-price-row">
           <div class="final-price-label">✅ 최종 판가</div>
-          <input class="final-price-input" id="mini_final" type="number" placeholder="직접 입력">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input class="final-price-input" id="mini_final" type="number" placeholder="직접 입력" oninput="updateFinalDisplay()">
+            <span id="mini_final_display" style="color:#C8A96E;font-size:12px;font-weight:700;white-space:nowrap;"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -474,43 +478,6 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
           <thead id="orderThead"></thead>
           <tbody id="orderTbody"></tbody>
         </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- 상세 사이즈 -->
-  <div class="card">
-    <div class="card-header"><span class="dot"></span>상세 사이즈 詳細尺寸</div>
-    <div class="card-body">
-      <div class="size-grid">
-        <div>
-          <div class="size-col-title">상의</div>
-          <div class="size-item"><div class="size-item-label">사이즈 옵션</div><input class="size-item-input" type="text" id="sz_top_opt"></div>
-          <div class="size-item"><div class="size-item-label">총기장</div><input class="size-item-input" type="number" id="sz_top_1" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">어깨넓이</div><input class="size-item-input" type="number" id="sz_top_2" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">가슴둘레</div><input class="size-item-input" type="number" id="sz_top_3" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">밑단둘레</div><input class="size-item-input" type="number" id="sz_top_4" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">소매기장</div><input class="size-item-input" type="number" id="sz_top_5" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">암홀</div><input class="size-item-input" type="number" id="sz_top_6" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">소매통둘레</div><input class="size-item-input" type="number" id="sz_top_7" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">소매입구둘레</div><input class="size-item-input" type="number" id="sz_top_8" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">기타</div><input class="size-item-input" type="text" id="sz_top_9"></div>
-          <div class="size-item"><div class="size-item-label">추천사이즈</div><input class="size-item-input" type="text" id="sz_top_rec"></div>
-        </div>
-        <div>
-          <div class="size-col-title">하의</div>
-          <div class="size-item"><div class="size-item-label">사이즈 옵션</div><input class="size-item-input" type="text" id="sz_bot_opt"></div>
-          <div class="size-item"><div class="size-item-label">총기장</div><input class="size-item-input" type="number" id="sz_bot_1" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">허리최소</div><input class="size-item-input" type="number" id="sz_bot_2" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">허리최대</div><input class="size-item-input" type="number" id="sz_bot_3" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">힙둘레</div><input class="size-item-input" type="number" id="sz_bot_4" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">허벅지둘레</div><input class="size-item-input" type="number" id="sz_bot_5" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">밑단둘레</div><input class="size-item-input" type="number" id="sz_bot_6" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">오비</div><input class="size-item-input" type="number" id="sz_bot_7" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">앞밑위</div><input class="size-item-input" type="number" id="sz_bot_8" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">뒷밑위</div><input class="size-item-input" type="number" id="sz_bot_9" placeholder="cm"></div>
-          <div class="size-item"><div class="size-item-label">기타</div><input class="size-item-input" type="text" id="sz_bot_10"></div>
-        </div>
       </div>
     </div>
   </div>
@@ -815,6 +782,33 @@ function resetImgs() { imgList = []; imgCurrent = 0; renderImgUI(); }
 // ═══════════════════════════════════════════════════════
 //  CALC
 // ═══════════════════════════════════════════════════════
+function toggleRateLock() {
+  const inp = document.getElementById('mini_rate');
+  const btn = document.getElementById('rateLockBtn');
+  if (inp.readOnly) {
+    inp.readOnly = false;
+    inp.style.opacity = '1';
+    inp.style.cursor  = 'text';
+    btn.textContent = '🔓 편집중';
+    btn.style.background = '#555';
+    btn.style.color = 'white';
+    inp.focus();
+  } else {
+    inp.readOnly = true;
+    inp.style.opacity = '0.6';
+    inp.style.cursor  = 'default';
+    btn.textContent = '🔒 고정';
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#111';
+    calcMini();
+  }
+}
+
+function updateFinalDisplay() {
+  const v = parseFloat(document.getElementById('mini_final').value);
+  const el = document.getElementById('mini_final_display');
+  if (el) el.textContent = v ? v.toLocaleString('ko-KR') + '원' : '';
+}
 function fmt(n) {
   if (!n && n !== 0) return '—';
   return Math.round(n).toLocaleString('ko-KR') + '원';
@@ -853,6 +847,10 @@ function resetForm() {
   addSizeRow('S'); addSizeRow('M'); addSizeRow('L');
   addColorCol('컬러1'); addColorCol('컬러2');
   resetImgs();
+  editingEntryId = null;
+  const saveBtn = document.querySelector('#bar-mini .btn-save');
+  if (saveBtn) saveBtn.textContent = '💾 저장';
+  updateFinalDisplay();
 }
 function clearForm() {
   if (!confirm('현재 입력 내용을 모두 초기화할까요?')) return;
@@ -908,29 +906,44 @@ function getFormData() {
   };
 }
 
+// 현재 편집 중인 항목 ID (불러오기 후 수정 시 사용)
+let editingEntryId = null;
+
 function saveEntry() {
   const data = getFormData();
   const KEY  = 'wansaip_entries';
   let entries = [];
   try { entries = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) {}
-  const newEntry   = { id: 'entry_' + Date.now(), ...data };
-  const newEntries = [newEntry, ...entries];
+
+  let newEntries;
+  if (editingEntryId) {
+    // 기존 문서 수정
+    newEntries = entries.map(e => e.id === editingEntryId
+      ? { ...e, ...data, id: editingEntryId, savedAt: new Date().toISOString() }
+      : e
+    );
+  } else {
+    // 새 문서 생성
+    const newEntry = { id: 'entry_' + Date.now(), ...data };
+    newEntries = [newEntry, ...entries];
+  }
 
   let saved = trySetStorage(KEY, JSON.stringify(newEntries));
   if (!saved) {
-    const noImg = [{ ...newEntry, images: [] }, ...entries];
+    const noImg = newEntries.map(e => ({ ...e, images: [] }));
     saved = trySetStorage(KEY, JSON.stringify(noImg));
     if (saved) showToast('✅ 저장됨 (저장공간 부족으로 이미지 제외)');
   } else {
-    showToast('✅ 저장되었습니다');
+    showToast(editingEntryId ? '✅ 수정되었습니다' : '✅ 저장되었습니다');
   }
   if (!saved) {
     const trimmed = entries.slice(0, Math.max(0, entries.length - 3));
-    saved = trySetStorage(KEY, JSON.stringify([{ ...newEntry, images: [] }, ...trimmed]));
+    saved = trySetStorage(KEY, JSON.stringify([{ id:'entry_'+Date.now(), ...data, images:[] }, ...trimmed]));
     if (saved) showToast('✅ 저장됨 (공간 확보를 위해 오래된 항목 일부 삭제)');
   }
   if (!saved) { showToast('⚠ 저장 공간 부족 — 목록에서 오래된 항목을 삭제해 주세요'); return; }
 
+  editingEntryId = null;
   resetForm();
   const savedBtn = document.querySelectorAll('.tab-btn')[1];
   showTab('tab-saved', savedBtn);
@@ -943,6 +956,8 @@ function loadEntry(entryId) {
   const data = entries.find(e => e.id === entryId);
   if (!data) return;
 
+  editingEntryId = entryId; // 수정 모드
+
   document.getElementById('mini_date').value      = data.date      || '';
   document.getElementById('mini_building').value  = data.building  || '';
   document.getElementById('mini_shop').value      = data.shop      || '';
@@ -953,9 +968,9 @@ function loadEntry(entryId) {
   document.getElementById('mini_final').value     = data.finalPrice|| '';
   document.getElementById('mini_memo').value      = data.memo      || '';
 
-  if (data.sizes) Object.keys(data.sizes).forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = data.sizes[id];
-  });
+  // 저장 버튼 텍스트를 "수정 저장"으로 변경
+  const saveBtn = document.querySelector('#bar-mini .btn-save');
+  if (saveBtn) saveBtn.textContent = '✏️ 수정 저장';
 
   colorCols  = data.colorCols  || [];
   sizeRows   = data.sizeRows   || [];
@@ -966,10 +981,11 @@ function loadEntry(entryId) {
 
   imgList = data.images || []; imgCurrent = 0; renderImgUI();
   calcMini();
+  updateFinalDisplay();
 
   const miniBtn = document.querySelectorAll('.tab-btn')[0];
   showTab('tab-mini', miniBtn);
-  showToast('📋 불러왔습니다');
+  showToast('📋 불러왔습니다 — 수정 후 저장하세요');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1255,6 +1271,10 @@ function showShareModal(data) {
         <div style="font-size:9px;color:#AEAAA0;margin-bottom:2px;">납품가</div>
         <div style="font-size:13px;font-weight:700;color:#111;">${yuan}元</div>
       </div>` : ''}
+      <div style="background:#f2f1ee;border-radius:6px;padding:8px 10px;">
+        <div style="font-size:9px;color:#AEAAA0;margin-bottom:2px;">환율</div>
+        <div style="font-size:13px;font-weight:700;color:#111;">${parseFloat(data.rate)||225}원/元</div>
+      </div>
       ${tax15 ? `<div style="background:#f2f1ee;border-radius:6px;padding:8px 10px;">
         <div style="font-size:9px;color:#AEAAA0;margin-bottom:2px;">원가(관부가세)</div>
         <div style="font-size:13px;font-weight:700;color:#111;">${tax15.toLocaleString()}원</div>
@@ -1349,11 +1369,30 @@ function showShareModal(data) {
       btnDown.disabled = true;
       try {
         const canvas = await captureCard();
-        const link = document.createElement('a');
-        link.download = `09WOMEN_${data.workno || data.sampleno || 'workorder'}_${Date.now()}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-        showToast('✅ 이미지 저장됨');
+        const fileName = `09WOMEN_${data.workno || data.sampleno || 'workorder'}_${Date.now()}.png`;
+        canvas.toBlob(async blob => {
+          const file = new File([blob], fileName, {type:'image/png'});
+          // iOS Safari: Web Share API로 사진첩 저장 유도
+          if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
+            try {
+              await navigator.share({ files:[file], title:'09WOMEN 완사입 작지' });
+              showToast('✅ 공유 완료 — 사진 저장을 선택하세요');
+            } catch(err) {
+              if (!err.message.includes('cancel')) {
+                // 공유 취소 시 다운로드 fallback
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href=url; a.download=fileName; a.click();
+                URL.revokeObjectURL(url);
+              }
+            }
+          } else {
+            // 데스크탑 또는 비지원 브라우저
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href=url; a.download=fileName; a.click();
+            URL.revokeObjectURL(url);
+            showToast('✅ 이미지 저장됨');
+          }
+        }, 'image/png');
       } catch(err) {
         showToast('⚠ 이미지 생성 실패');
       }
