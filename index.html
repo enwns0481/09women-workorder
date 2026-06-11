@@ -1077,6 +1077,7 @@ function attachListEvents(container, isTrash) {
       const action = btn.dataset.action;
       const id     = btn.dataset.id;
       if (action === 'load')    loadEntry(id);
+      if (action === 'share')   shareEntry(id);
       if (action === 'trash')   moveToTrash(id);
       if (action === 'restore') restoreFromTrash(id);
       if (action === 'delete')  deleteFromTrash(id);
@@ -1117,7 +1118,8 @@ function buildEntryHTML(e, isTrash) {
   const actionBtns = isTrash
     ? `<button class="btn-load" data-action="restore" data-id="${e.id}" style="background:#2a9d7a;color:white;">복원</button>
        <button class="btn-del"  data-action="delete"  data-id="${e.id}" style="color:#c0392b;font-size:15px;padding:4px 6px;">✕</button>`
-    : `<button class="btn-load" data-action="load"  data-id="${e.id}">불러오기</button>
+    : `<button class="btn-load" data-action="share" data-id="${e.id}" style="background:#2a2a2a;color:#C8A96E;font-size:12px;padding:5px 8px;border:none;border-radius:4px;cursor:pointer;font-family:var(--font-kr);font-weight:700;">↗ 공유</button>
+       <button class="btn-load" data-action="load"  data-id="${e.id}">불러오기</button>
        <button class="btn-del"  data-action="trash" data-id="${e.id}">🗑</button>`;
 
   const multiImgs = (e.images && e.images.length > 1)
@@ -1148,6 +1150,251 @@ function buildEntryHTML(e, isTrash) {
       ${e.memo ? `<div class="saved-detail-row"><span class="saved-detail-label">메모</span><span class="saved-detail-value" style="max-width:60%;text-align:right;word-break:break-all;">${escAttr(e.memo)}</span></div>` : ''}
     </div>
   </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  SHARE — 작지 이미지로 공유
+// ═══════════════════════════════════════════════════════
+function shareEntry(entryId) {
+  const KEY = 'wansaip_entries';
+  let entries = [];
+  try { entries = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) {}
+  const data = entries.find(e => e.id === entryId);
+  if (!data) return;
+  showShareModal(data);
+}
+
+function showShareModal(data) {
+  // 기존 모달 제거
+  const old = document.getElementById('shareModal');
+  if (old) old.remove();
+
+  const rate     = parseFloat(data.rate) || 225;
+  const yuan     = parseFloat(data.yuan) || 0;
+  const tax15    = yuan ? Math.round(yuan * rate * 1.1 * 1.15) : 0;
+  const finalP   = data.finalPrice ? parseInt(data.finalPrice) : 0;
+  const colors   = (data.colorCols||[]).map(c=>c.name).filter(Boolean).join(', ') || '—';
+  const sizes    = (data.sizeRows||[]).map(s=>s.name).filter(Boolean).join(' / ') || '—';
+  const dt       = data.date ? data.date.replace(/-/g,'.') : '';
+  let totalQty   = 0;
+  (data.sizeRows||[]).forEach(s => (data.colorCols||[]).forEach(c => {
+    totalQty += parseInt(((data.orderData||{})[s.id]||{})[c.id]||0);
+  }));
+
+  // 오더 테이블 HTML
+  let orderTableHTML = '';
+  if ((data.colorCols||[]).length && (data.sizeRows||[]).length) {
+    orderTableHTML = `
+    <table style="border-collapse:collapse;width:100%;font-size:11px;margin-top:4px;">
+      <thead><tr>
+        <th style="background:#222;color:#C8A96E;padding:5px 7px;font-size:10px;text-align:center;border:1px solid #333;">사이즈</th>
+        ${(data.colorCols||[]).map(c=>`<th style="background:#222;color:white;padding:5px 7px;font-size:10px;text-align:center;border:1px solid #333;">${escAttr(c.name)}</th>`).join('')}
+        <th style="background:#C8A96E;color:#111;padding:5px 7px;font-size:10px;text-align:center;border:1px solid #C8A96E;">합계</th>
+      </tr></thead>
+      <tbody>
+        ${(data.sizeRows||[]).map(s => {
+          let rowTotal = 0;
+          const cells = (data.colorCols||[]).map(c => {
+            const v = parseInt(((data.orderData||{})[s.id]||{})[c.id]||0);
+            rowTotal += v;
+            return `<td style="border:1px solid #e4e2dc;padding:5px 7px;text-align:center;background:white;">${v||''}</td>`;
+          }).join('');
+          return `<tr>
+            <td style="background:#f2f1ee;border:1px solid #e4e2dc;padding:5px 7px;text-align:center;font-weight:700;font-size:10px;">${escAttr(s.name)}</td>
+            ${cells}
+            <td style="background:#f0e8d5;border:1px solid #e4e2dc;padding:5px 7px;text-align:center;font-weight:700;">${rowTotal||0}</td>
+          </tr>`;
+        }).join('')}
+        <tr>
+          <td style="background:#111;color:#C8A96E;border:1px solid #333;padding:5px 7px;text-align:center;font-size:10px;font-weight:700;">합계</td>
+          ${(data.colorCols||[]).map(c => {
+            let sum=0; (data.sizeRows||[]).forEach(s=>{sum+=parseInt(((data.orderData||{})[s.id]||{})[c.id]||0);}); 
+            return `<td style="background:#f2f1ee;border:1px solid #e4e2dc;padding:5px 7px;text-align:center;font-weight:700;">${sum||0}</td>`;
+          }).join('')}
+          <td style="background:#C8A96E;color:#111;border:1px solid #C8A96E;padding:5px 7px;text-align:center;font-weight:700;">${totalQty}</td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+
+  // 공유용 카드 HTML
+  const cardHTML = `
+  <div id="shareCard" style="
+    width:360px; background:#FAFAF8; font-family:'Noto Sans KR',sans-serif;
+    border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.15);
+  ">
+    <!-- 헤더 -->
+    <div style="background:#111;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="color:#AEAAA0;font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;">완사입 작지</div>
+        <div style="color:white;font-size:17px;font-weight:700;letter-spacing:0.5px;">09WOMEN</div>
+      </div>
+      ${dt ? `<div style="color:#C8A96E;font-size:11px;">${dt}</div>` : ''}
+    </div>
+
+    <!-- 제품 이미지 -->
+    ${data.images && data.images.length ? `
+    <div style="background:#000;text-align:center;max-height:200px;overflow:hidden;">
+      <img src="${data.images[0]}" style="width:100%;max-height:200px;object-fit:contain;" alt="">
+    </div>` : ''}
+
+    <!-- 기본 정보 -->
+    <div style="padding:14px 16px 0;">
+      ${data.workno ? `<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:4px;">${escAttr(data.workno)}</div>` : ''}
+      ${data.sampleno ? `<div style="font-size:12px;color:#6B6760;margin-bottom:2px;">제품명: ${escAttr(data.sampleno)}</div>` : ''}
+      ${data.shop ? `<div style="font-size:11px;color:#AEAAA0;">거래처: ${escAttr(data.shop)}</div>` : ''}
+      ${data.building ? `<div style="font-size:11px;color:#AEAAA0;">건물: ${escAttr(data.building)}</div>` : ''}
+    </div>
+
+    <!-- 구분선 -->
+    <div style="height:1px;background:#E4E2DC;margin:12px 16px;"></div>
+
+    <!-- 단가 -->
+    <div style="padding:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      ${yuan ? `<div style="background:#f2f1ee;border-radius:6px;padding:8px 10px;">
+        <div style="font-size:9px;color:#AEAAA0;margin-bottom:2px;">납품가</div>
+        <div style="font-size:13px;font-weight:700;color:#111;">${yuan}元</div>
+      </div>` : ''}
+      ${tax15 ? `<div style="background:#f2f1ee;border-radius:6px;padding:8px 10px;">
+        <div style="font-size:9px;color:#AEAAA0;margin-bottom:2px;">원가(관부가세)</div>
+        <div style="font-size:13px;font-weight:700;color:#111;">${tax15.toLocaleString()}원</div>
+      </div>` : ''}
+      ${finalP ? `<div style="background:#111;border-radius:6px;padding:8px 10px;grid-column:span 2;">
+        <div style="font-size:9px;color:#AEAAA0;margin-bottom:2px;">최종 판가</div>
+        <div style="font-size:15px;font-weight:700;color:#C8A96E;">${finalP.toLocaleString()}원</div>
+      </div>` : ''}
+    </div>
+
+    <!-- 컬러/사이즈 -->
+    ${colors !== '—' || sizes !== '—' ? `
+    <div style="padding:0 16px;margin-bottom:12px;">
+      ${colors !== '—' ? `<div style="font-size:11px;color:#6B6760;margin-bottom:4px;"><span style="font-weight:700;">컬러</span> ${escAttr(colors)}</div>` : ''}
+      ${sizes !== '—' ? `<div style="font-size:11px;color:#6B6760;"><span style="font-weight:700;">사이즈</span> ${escAttr(sizes)}</div>` : ''}
+    </div>` : ''}
+
+    <!-- 오더 수량 테이블 -->
+    ${orderTableHTML ? `<div style="padding:0 16px;margin-bottom:12px;">${orderTableHTML}</div>` : ''}
+
+    <!-- 메모 -->
+    ${data.memo ? `
+    <div style="margin:0 16px 12px;background:#FFFBF0;border-left:3px solid #C8A96E;padding:8px 10px;border-radius:0 6px 6px 0;">
+      <div style="font-size:9px;color:#C8A96E;font-weight:700;margin-bottom:3px;">MEMO</div>
+      <div style="font-size:11px;color:#111;line-height:1.6;">${escAttr(data.memo)}</div>
+    </div>` : ''}
+
+    <!-- 푸터 -->
+    <div style="background:#111;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="color:#555;font-size:9px;letter-spacing:1px;">09WOMEN WORKORDER</div>
+      <div style="color:#C8A96E;font-size:9px;">${new Date().toLocaleDateString('ko-KR')}</div>
+    </div>
+  </div>`;
+
+  // 모달
+  const modal = document.createElement('div');
+  modal.id = 'shareModal';
+  modal.style.cssText = `
+    position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.8);
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    padding:20px 16px;overflow-y:auto;
+  `;
+  modal.innerHTML = `
+    <div style="width:100%;max-width:380px;">
+      <!-- 모달 상단 -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="color:white;font-weight:700;font-size:14px;">공유 이미지 미리보기</div>
+        <button id="shareModalClose" style="background:none;border:none;color:#AEAAA0;font-size:22px;cursor:pointer;line-height:1;padding:4px;">✕</button>
+      </div>
+
+      <!-- 카드 미리보기 -->
+      <div id="shareCardWrap" style="margin-bottom:16px;">${cardHTML}</div>
+
+      <!-- 공유 버튼들 -->
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button id="btnDownload" style="flex:1;padding:13px;background:#C8A96E;color:#111;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">
+          ⬇ 이미지 저장
+        </button>
+        <button id="btnShareNative" style="flex:1;padding:13px;background:#111;color:white;border:1px solid #333;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">
+          ↗ 공유하기
+        </button>
+      </div>
+      <div style="color:#6B6760;font-size:10px;text-align:center;line-height:1.6;">
+        "이미지 저장" 후 카카오톡·인스타 등에 직접 첨부하거나<br>"공유하기"로 바로 앱을 선택해 보낼 수 있어요
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // 닫기
+  document.getElementById('shareModalClose').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  // html2canvas 로드 후 캡처
+  loadHtml2Canvas(() => {
+    const card = document.getElementById('shareCard');
+    const btnDown = document.getElementById('btnDownload');
+    const btnShare = document.getElementById('btnShareNative');
+
+    async function captureCard() {
+      const canvas = await html2canvas(card, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#FAFAF8',
+        logging: false
+      });
+      return canvas;
+    }
+
+    btnDown.addEventListener('click', async () => {
+      btnDown.textContent = '생성 중...';
+      btnDown.disabled = true;
+      try {
+        const canvas = await captureCard();
+        const link = document.createElement('a');
+        link.download = `09WOMEN_${data.workno || data.sampleno || 'workorder'}_${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('✅ 이미지 저장됨');
+      } catch(err) {
+        showToast('⚠ 이미지 생성 실패');
+      }
+      btnDown.textContent = '⬇ 이미지 저장';
+      btnDown.disabled = false;
+    });
+
+    btnShare.addEventListener('click', async () => {
+      btnShare.textContent = '생성 중...';
+      btnShare.disabled = true;
+      try {
+        const canvas = await captureCard();
+        canvas.toBlob(async blob => {
+          const file = new File([blob], `09WOMEN_작지.png`, {type:'image/png'});
+          if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
+            await navigator.share({ files:[file], title:'09WOMEN 완사입 작지' });
+          } else {
+            // Web Share API 미지원 → 다운로드로 대체
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = '09WOMEN_작지.png'; a.click();
+            URL.revokeObjectURL(url);
+            showToast('이미지를 저장했어요 — 앱에서 직접 첨부해주세요');
+          }
+        }, 'image/png');
+      } catch(err) {
+        if (!err.message.includes('cancel')) showToast('⚠ 공유 실패');
+      }
+      btnShare.textContent = '↗ 공유하기';
+      btnShare.disabled = false;
+    });
+  });
+}
+
+function loadHtml2Canvas(cb) {
+  if (window.html2canvas) { cb(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  s.onload = cb;
+  s.onerror = () => showToast('⚠ 라이브러리 로딩 실패 — 인터넷 연결 확인');
+  document.head.appendChild(s);
 }
 
 // ═══════════════════════════════════════════════════════
