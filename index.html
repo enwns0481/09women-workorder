@@ -553,21 +553,18 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
 <div class="toast" id="toast"></div>
 
 <script>
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 //  STATE
-// ──────────────────────────────────────────
-let colorCols = [];   // [{id, name}]
-let sizeRows  = [];   // [{id, name}]
-let orderData = {};   // orderData[sizeId][colorId] = qty (string)
+// ═══════════════════════════════════════════════════════
+let colorCols = [];  // [{id, name}]
+let sizeRows  = [];  // [{id, name}]
+let orderData = {};  // orderData[sizeId][colorId] = qty
 let colCounter = 0, rowCounter = 0;
+let imgList = [], imgCurrent = 0;
 
-// 이미지 상태
-let imgList    = [];  // base64 strings
-let imgCurrent = 0;
-
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 //  INIT
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   const today = new Date();
   document.getElementById('headerDate').textContent =
@@ -575,25 +572,27 @@ window.addEventListener('DOMContentLoaded', () => {
     String(today.getMonth()+1).padStart(2,'0') + '.' +
     String(today.getDate()).padStart(2,'0');
 
-  // 기본 사이즈 3개, 컬러 2개
-  addSizeRow('S');
-  addSizeRow('M');
-  addSizeRow('L');
-  addColorCol('컬러1');
-  addColorCol('컬러2');
-
+  addSizeRow('S'); addSizeRow('M'); addSizeRow('L');
+  addColorCol('컬러1'); addColorCol('컬러2');
   renderSavedList();
+  renderTrashList();
+
+  // iOS PWA 설치 배너
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true;
+  if (isIOS && !isStandalone && !localStorage.getItem('pwa_banner_dismissed')) {
+    setTimeout(showInstallBanner, 2000);
+  }
 });
 
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 //  TAB
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 function showTab(id, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
-  // 하단 바 전환
   document.getElementById('bar-mini').style.display  = id === 'tab-mini'  ? 'flex' : 'none';
   document.getElementById('bar-saved').style.display = id === 'tab-saved' ? 'flex' : 'none';
   document.getElementById('bar-trash').style.display = id === 'tab-trash' ? 'flex' : 'none';
@@ -601,53 +600,85 @@ function showTab(id, btn) {
   if (id === 'tab-trash') renderTrashList();
 }
 
-// ──────────────────────────────────────────
-//  ORDER TABLE — 사이즈 행, 컬러 열
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+//  ORDER TABLE  (사이즈 = 행, 컬러 = 열)
+//  인라인 onclick 없이 data-* 속성 + 이벤트위임 사용
+// ═══════════════════════════════════════════════════════
 function renderOrderTable() {
   const thead = document.getElementById('orderThead');
   const tbody = document.getElementById('orderTbody');
 
-  // HEAD: 빈 코너 | 컬러들 | 합계
-  let headRow = `<tr>
-    <th style="background:#1a1a1a;font-size:9px;color:#555;padding:5px;">사이즈 ↓ / 컬러 →</th>`;
+  // ── 헤더 ──
+  let headHTML = '<tr><th style="background:#1a1a1a;font-size:9px;color:#555;padding:5px;min-width:60px;">사이즈↓/컬러→</th>';
   colorCols.forEach(c => {
-    headRow += `<th class="color-header-cell">
-      <input type="text" value="${c.name}" placeholder="컬러명"
-        oninput="colorCols.find(x=>x.id==='${c.id}').name=this.value; refreshTotals()">
-      <button onclick="removeColor('${c.id}')" style="position:absolute;top:1px;right:1px;background:none;border:none;color:#555;cursor:pointer;font-size:9px;line-height:1;">✕</button>
+    headHTML += `<th class="color-header-cell" style="min-width:64px;">
+      <input class="col-name-input" type="text" data-cid="${c.id}" value="${escAttr(c.name)}" placeholder="컬러명">
+      <button class="remove-col-btn" data-cid="${c.id}" style="position:absolute;top:1px;right:1px;background:none;border:none;color:#555;cursor:pointer;font-size:9px;line-height:1;">✕</button>
     </th>`;
   });
-  headRow += `<th style="background:var(--accent);color:var(--black);font-size:10px;">합계</th></tr>`;
-  thead.innerHTML = headRow;
+  headHTML += '<th style="background:var(--accent);color:var(--black);font-size:10px;">합계</th></tr>';
+  thead.innerHTML = headHTML;
 
-  // BODY: 사이즈 행들
+  // ── 바디 ──
   let bodyHTML = '';
   sizeRows.forEach(s => {
     bodyHTML += `<tr>
       <td class="size-label-cell">
-        <input type="text" value="${s.name}" placeholder="사이즈"
-          oninput="sizeRows.find(x=>x.id==='${s.id}').name=this.value; refreshTotals()">
-        <button onclick="removeSize('${s.id}')" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:9px;margin-left:2px;">✕</button>
+        <input class="row-name-input" type="text" data-sid="${s.id}" value="${escAttr(s.name)}" placeholder="사이즈">
+        <button class="remove-row-btn" data-sid="${s.id}" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:9px;margin-left:2px;">✕</button>
       </td>`;
     colorCols.forEach(c => {
-      const v = (orderData[s.id] && orderData[s.id][c.id]) || '';
-      bodyHTML += `<td><input type="number" min="0" value="${v}" placeholder="0"
-        oninput="setOrder('${s.id}','${c.id}',this.value)"></td>`;
+      const v = (orderData[s.id] || {})[c.id] || '';
+      bodyHTML += `<td><input class="qty-input" type="number" min="0" data-sid="${s.id}" data-cid="${c.id}" value="${v}" placeholder="0"></td>`;
     });
     bodyHTML += `<td class="total-cell" id="rowTotal_${s.id}">0</td></tr>`;
   });
 
-  // 합계 행
-  bodyHTML += `<tr class="total-row">
-    <td class="corner">합계</td>`;
-  colorCols.forEach(c => {
-    bodyHTML += `<td id="colTotal_${c.id}">0</td>`;
-  });
-  bodyHTML += `<td id="grandTotal">0</td></tr>`;
+  // ── 합계 행 ──
+  bodyHTML += '<tr class="total-row"><td class="corner">합계</td>';
+  colorCols.forEach(c => { bodyHTML += `<td id="colTotal_${c.id}">0</td>`; });
+  bodyHTML += '<td id="grandTotal">0</td></tr>';
 
   tbody.innerHTML = bodyHTML;
+
+  // 이벤트 위임 — thead
+  thead.onclick = null;
+  thead.oninput = null;
+  thead.addEventListener('click', e => {
+    const btn = e.target.closest('.remove-col-btn');
+    if (btn) removeColor(btn.dataset.cid);
+  });
+  thead.addEventListener('input', e => {
+    const inp = e.target.closest('.col-name-input');
+    if (inp) {
+      const col = colorCols.find(c => c.id === inp.dataset.cid);
+      if (col) col.name = inp.value;
+    }
+  });
+
+  // 이벤트 위임 — tbody
+  tbody.onclick = null;
+  tbody.oninput = null;
+  tbody.addEventListener('click', e => {
+    const btn = e.target.closest('.remove-row-btn');
+    if (btn) removeSize(btn.dataset.sid);
+  });
+  tbody.addEventListener('input', e => {
+    const rowInp = e.target.closest('.row-name-input');
+    if (rowInp) {
+      const row = sizeRows.find(s => s.id === rowInp.dataset.sid);
+      if (row) row.name = rowInp.value;
+      return;
+    }
+    const qty = e.target.closest('.qty-input');
+    if (qty) setOrder(qty.dataset.sid, qty.dataset.cid, qty.value);
+  });
+
   refreshTotals();
+}
+
+function escAttr(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function setOrder(sId, cId, val) {
@@ -657,39 +688,36 @@ function setOrder(sId, cId, val) {
 }
 
 function refreshTotals() {
-  // 행 합계
   sizeRows.forEach(s => {
     let sum = 0;
     colorCols.forEach(c => { sum += parseInt((orderData[s.id]||{})[c.id]||0); });
-    const el = document.getElementById(`rowTotal_${s.id}`);
-    if (el) el.textContent = sum || 0;
+    const el = document.getElementById('rowTotal_' + s.id);
+    if (el) el.textContent = sum;
   });
-  // 열 합계
   colorCols.forEach(c => {
     let sum = 0;
     sizeRows.forEach(s => { sum += parseInt((orderData[s.id]||{})[c.id]||0); });
-    const el = document.getElementById(`colTotal_${c.id}`);
-    if (el) el.textContent = sum || 0;
+    const el = document.getElementById('colTotal_' + c.id);
+    if (el) el.textContent = sum;
   });
-  // 전체 합계
   let grand = 0;
   sizeRows.forEach(s => colorCols.forEach(c => { grand += parseInt((orderData[s.id]||{})[c.id]||0); }));
   const ge = document.getElementById('grandTotal');
-  if (ge) ge.textContent = grand || 0;
+  if (ge) ge.textContent = grand;
 }
 
-function addSizeRow(defaultName) {
+function addSizeRow(name) {
   rowCounter++;
   const id = 'sz_' + rowCounter;
-  sizeRows.push({ id, name: defaultName || '' });
+  sizeRows.push({ id, name: name || '' });
   if (!orderData[id]) orderData[id] = {};
   renderOrderTable();
 }
 
-function addColorCol(defaultName) {
+function addColorCol(name) {
   colCounter++;
   const id = 'cl_' + colCounter;
-  colorCols.push({ id, name: defaultName || '' });
+  colorCols.push({ id, name: name || '' });
   renderOrderTable();
 }
 
@@ -705,32 +733,25 @@ function removeColor(id) {
   renderOrderTable();
 }
 
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 //  IMAGE
-// ──────────────────────────────────────────
-function triggerCamera() {
-  document.getElementById('fileInputCamera').click();
-}
-function triggerFileInput() {
-  // 이미지 없을 때 탭 → 카메라/앨범 선택. 이미 있으면 앨범으로
-  document.getElementById('fileInputAlbum').click();
-}
+// ═══════════════════════════════════════════════════════
+function triggerCamera() { document.getElementById('fileInputCamera').click(); }
+function triggerFileInput() { document.getElementById('fileInputAlbum').click(); }
+
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('imgArea').classList.remove('drag-over');
-  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-  processFiles(files);
+  processFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')));
 }
 function handleFileSelect(input) {
-  const files = Array.from(input.files);
-  processFiles(files);
-  input.value = ''; // 같은 파일 재선택 허용
+  processFiles(Array.from(input.files));
+  input.value = '';
 }
 function processFiles(files) {
   if (!files.length) return;
   let loaded = 0;
   files.forEach(file => {
-    // Canvas로 리사이즈 압축 (최대 800px, 퀄리티 0.7)
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -738,19 +759,15 @@ function processFiles(files) {
       let w = img.width, h = img.height;
       if (w > MAX || h > MAX) {
         if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else       { w = Math.round(w * MAX / h); h = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
       }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      const compressed = canvas.toDataURL('image/jpeg', 0.7);
+      imgList.push(canvas.toDataURL('image/jpeg', 0.7));
       URL.revokeObjectURL(url);
-      imgList.push(compressed);
       loaded++;
-      if (loaded === files.length) {
-        imgCurrent = imgList.length - 1;
-        renderImgUI();
-      }
+      if (loaded === files.length) { imgCurrent = imgList.length - 1; renderImgUI(); }
     };
     img.src = url;
   });
@@ -762,30 +779,23 @@ function renderImgUI() {
   const nav     = document.getElementById('imgNav');
   const delBtn  = document.getElementById('imgDelBtn');
   const dots    = document.getElementById('imgDots');
-
-  if (imgList.length === 0) {
+  if (!imgList.length) {
     area.classList.remove('has-image');
     preview.src = '';
-    badge.style.display = 'none';
-    nav.style.display = 'none';
+    badge.style.display = nav.style.display = 'none';
     delBtn.style.display = 'none';
     return;
   }
-
   area.classList.add('has-image');
   preview.src = imgList[imgCurrent];
   badge.style.display = 'block';
-  badge.textContent = `${imgCurrent + 1} / ${imgList.length}`;
+  badge.textContent = (imgCurrent + 1) + ' / ' + imgList.length;
   delBtn.style.display = 'block';
-
-  // 네비게이션 (2장 이상)
   if (imgList.length > 1) {
     nav.style.display = 'flex';
     document.getElementById('imgPrev').disabled = imgCurrent === 0;
     document.getElementById('imgNext').disabled = imgCurrent === imgList.length - 1;
-    dots.innerHTML = imgList.map((_, i) =>
-      `<div class="img-dot${i === imgCurrent ? ' active' : ''}"></div>`
-    ).join('');
+    dots.innerHTML = imgList.map((_, i) => `<div class="img-dot${i === imgCurrent ? ' active' : ''}"></div>`).join('');
   } else {
     nav.style.display = 'none';
   }
@@ -800,23 +810,20 @@ function deleteCurrentImg() {
   imgCurrent = Math.max(0, imgCurrent - 1);
   renderImgUI();
 }
-function resetImgs() {
-  imgList = []; imgCurrent = 0; renderImgUI();
-}
+function resetImgs() { imgList = []; imgCurrent = 0; renderImgUI(); }
 
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 //  CALC
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 function fmt(n) {
   if (!n && n !== 0) return '—';
   return Math.round(n).toLocaleString('ko-KR') + '원';
 }
-
 function calcMini() {
   const rate = parseFloat(document.getElementById('mini_rate').value) || 0;
   const yuan = parseFloat(document.getElementById('mini_cost_yuan').value) || 0;
-  const ids = ['mini_krw','mini_tax10','mini_tax15','mini_x2','mini_x23','mini_x25','mini_x28','mini_x3'];
-  if (!yuan || !rate) { ids.forEach(id => document.getElementById(id).textContent = '—'); return; }
+  const ids  = ['mini_krw','mini_tax10','mini_tax15','mini_x2','mini_x23','mini_x25','mini_x28','mini_x3'];
+  if (!yuan || !rate) { ids.forEach(id => { document.getElementById(id).textContent = '—'; }); return; }
   const krw   = yuan * rate;
   const tax10 = krw * 1.1;
   const tax15 = tax10 * 1.15;
@@ -830,51 +837,9 @@ function calcMini() {
   document.getElementById('mini_x3').textContent    = fmt(tax15 * 3);
 }
 
-// ──────────────────────────────────────────
-//  CLEAR
-// ──────────────────────────────────────────
-function clearForm() {
-  if (!confirm('현재 입력 내용을 모두 초기화할까요?')) return;
-  resetForm();
-  showToast('초기화되었습니다');
-}
-
-// ──────────────────────────────────────────
-//  SAVE & LIST
-// ──────────────────────────────────────────
-function getFormData() {
-  // 오더 테이블 최신 input값 동기화
-  sizeRows.forEach(s => {
-    colorCols.forEach(c => {
-      const cell = document.querySelector(`#orderTbody input[oninput*="'${s.id}','${c.id}'"]`);
-      if (cell) { if (!orderData[s.id]) orderData[s.id] = {}; orderData[s.id][c.id] = cell.value; }
-    });
-  });
-
-  const szIds = ['sz_top_opt','sz_top_1','sz_top_2','sz_top_3','sz_top_4','sz_top_5','sz_top_6','sz_top_7','sz_top_8','sz_top_9','sz_top_rec',
-                 'sz_bot_opt','sz_bot_1','sz_bot_2','sz_bot_3','sz_bot_4','sz_bot_5','sz_bot_6','sz_bot_7','sz_bot_8','sz_bot_9','sz_bot_10'];
-  const sizes = {};
-  szIds.forEach(id => { const el = document.getElementById(id); if(el) sizes[id] = el.value; });
-
-  return {
-    date:     document.getElementById('mini_date').value,
-    building: document.getElementById('mini_building').value,
-    shop:     document.getElementById('mini_shop').value,
-    sampleno: document.getElementById('mini_sampleno').value,
-    workno:   document.getElementById('mini_workno').value,
-    rate:     document.getElementById('mini_rate').value,
-    yuan:     document.getElementById('mini_cost_yuan').value,
-    finalPrice: document.getElementById('mini_final').value,
-    memo:     document.getElementById('mini_memo').value,
-    colorCols: JSON.parse(JSON.stringify(colorCols)),
-    sizeRows:  JSON.parse(JSON.stringify(sizeRows)),
-    orderData: JSON.parse(JSON.stringify(orderData)),
-    sizes,
-    images:   JSON.parse(JSON.stringify(imgList)),
-    savedAt:  new Date().toISOString()
-  };
-}
-
+// ═══════════════════════════════════════════════════════
+//  FORM RESET
+// ═══════════════════════════════════════════════════════
 function resetForm() {
   ['mini_date','mini_building','mini_shop','mini_sampleno','mini_workno',
    'mini_cost_yuan','mini_final','mini_memo'].forEach(id => {
@@ -882,146 +847,166 @@ function resetForm() {
   });
   document.getElementById('mini_rate').value = 220;
   ['mini_krw','mini_tax10','mini_tax15','mini_x2','mini_x23','mini_x25','mini_x28','mini_x3']
-    .forEach(id => document.getElementById(id).textContent = '—');
-  document.querySelectorAll('[id^="sz_"]').forEach(el => el.value = '');
+    .forEach(id => { document.getElementById(id).textContent = '—'; });
+  document.querySelectorAll('[id^="sz_"]').forEach(el => { el.value = ''; });
   sizeRows = []; colorCols = []; orderData = {}; colCounter = 0; rowCounter = 0;
   addSizeRow('S'); addSizeRow('M'); addSizeRow('L');
   addColorCol('컬러1'); addColorCol('컬러2');
   resetImgs();
 }
+function clearForm() {
+  if (!confirm('현재 입력 내용을 모두 초기화할까요?')) return;
+  resetForm();
+  showToast('초기화되었습니다');
+}
 
+// ═══════════════════════════════════════════════════════
+//  STORAGE
+// ═══════════════════════════════════════════════════════
 function trySetStorage(key, value) {
-  try {
-    localStorage.setItem(key, value);
-    return true;
-  } catch(e) {
-    return false;
-  }
+  try { localStorage.setItem(key, value); return true; } catch(e) { return false; }
+}
+
+function getFormData() {
+  // 오더 테이블 현재 input 값 동기화
+  document.querySelectorAll('.qty-input').forEach(inp => {
+    const s = inp.dataset.sid, c = inp.dataset.cid;
+    if (s && c) { if (!orderData[s]) orderData[s] = {}; orderData[s][c] = inp.value; }
+  });
+  document.querySelectorAll('.col-name-input').forEach(inp => {
+    const col = colorCols.find(c => c.id === inp.dataset.cid);
+    if (col) col.name = inp.value;
+  });
+  document.querySelectorAll('.row-name-input').forEach(inp => {
+    const row = sizeRows.find(s => s.id === inp.dataset.sid);
+    if (row) row.name = inp.value;
+  });
+
+  const szIds = ['sz_top_opt','sz_top_1','sz_top_2','sz_top_3','sz_top_4','sz_top_5',
+                 'sz_top_6','sz_top_7','sz_top_8','sz_top_9','sz_top_rec',
+                 'sz_bot_opt','sz_bot_1','sz_bot_2','sz_bot_3','sz_bot_4','sz_bot_5',
+                 'sz_bot_6','sz_bot_7','sz_bot_8','sz_bot_9','sz_bot_10'];
+  const sizes = {};
+  szIds.forEach(id => { const el = document.getElementById(id); if (el) sizes[id] = el.value; });
+
+  return {
+    date:       document.getElementById('mini_date').value,
+    building:   document.getElementById('mini_building').value,
+    shop:       document.getElementById('mini_shop').value,
+    sampleno:   document.getElementById('mini_sampleno').value,
+    workno:     document.getElementById('mini_workno').value,
+    rate:       document.getElementById('mini_rate').value,
+    yuan:       document.getElementById('mini_cost_yuan').value,
+    finalPrice: document.getElementById('mini_final').value,
+    memo:       document.getElementById('mini_memo').value,
+    colorCols:  JSON.parse(JSON.stringify(colorCols)),
+    sizeRows:   JSON.parse(JSON.stringify(sizeRows)),
+    orderData:  JSON.parse(JSON.stringify(orderData)),
+    sizes,
+    images:     JSON.parse(JSON.stringify(imgList)),
+    savedAt:    new Date().toISOString()
+  };
 }
 
 function saveEntry() {
   const data = getFormData();
-  const key = 'wansaip_entries';
+  const KEY  = 'wansaip_entries';
   let entries = [];
-  try { entries = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) {}
-  const id = 'entry_' + Date.now();
-  const newEntry = { id, ...data };
+  try { entries = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) {}
+  const newEntry   = { id: 'entry_' + Date.now(), ...data };
   const newEntries = [newEntry, ...entries];
 
-  // 1차 시도: 이미지 포함 전체 저장
-  let saved = trySetStorage(key, JSON.stringify(newEntries));
-
-  // 2차 시도: 이미지 제외하고 저장 (용량 초과 시)
+  let saved = trySetStorage(KEY, JSON.stringify(newEntries));
   if (!saved) {
-    const noImgEntry = { ...newEntry, images: [] };
-    const noImgEntries = [noImgEntry, ...entries];
-    saved = trySetStorage(key, JSON.stringify(noImgEntries));
+    const noImg = [{ ...newEntry, images: [] }, ...entries];
+    saved = trySetStorage(KEY, JSON.stringify(noImg));
     if (saved) showToast('✅ 저장됨 (저장공간 부족으로 이미지 제외)');
   } else {
     showToast('✅ 저장되었습니다');
   }
-
-  // 3차 시도: 오래된 항목 제거 후 재시도
   if (!saved) {
     const trimmed = entries.slice(0, Math.max(0, entries.length - 3));
-    const noImgEntry = { ...newEntry, images: [] };
-    saved = trySetStorage(key, JSON.stringify([noImgEntry, ...trimmed]));
-    if (saved) showToast('✅ 저장됨 (공간 확보를 위해 오래된 항목 일부 삭제됨)');
+    saved = trySetStorage(KEY, JSON.stringify([{ ...newEntry, images: [] }, ...trimmed]));
+    if (saved) showToast('✅ 저장됨 (공간 확보를 위해 오래된 항목 일부 삭제)');
   }
+  if (!saved) { showToast('⚠ 저장 공간 부족 — 목록에서 오래된 항목을 삭제해 주세요'); return; }
 
-  if (!saved) {
-    showToast('⚠ 저장 공간이 부족해요. 목록에서 오래된 항목을 삭제해 주세요.');
-    return;
-  }
-
-  // 폼 초기화 후 저장 목록으로 이동
   resetForm();
   const savedBtn = document.querySelectorAll('.tab-btn')[1];
   showTab('tab-saved', savedBtn);
 }
 
-function loadEntry(id) {
-  const key = 'wansaip_entries';
+function loadEntry(entryId) {
+  const KEY = 'wansaip_entries';
   let entries = [];
-  try { entries = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) {}
-  const data = entries.find(e => e.id === id);
+  try { entries = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) {}
+  const data = entries.find(e => e.id === entryId);
   if (!data) return;
 
-  document.getElementById('mini_date').value     = data.date || '';
-  document.getElementById('mini_building').value = data.building || '';
-  document.getElementById('mini_shop').value     = data.shop || '';
-  document.getElementById('mini_sampleno').value = data.sampleno || '';
-  document.getElementById('mini_workno').value   = data.workno || '';
-  document.getElementById('mini_rate').value     = data.rate || 220;
-  document.getElementById('mini_cost_yuan').value= data.yuan || '';
-  document.getElementById('mini_final').value    = data.finalPrice || '';
-  document.getElementById('mini_memo').value     = data.memo || '';
+  document.getElementById('mini_date').value      = data.date      || '';
+  document.getElementById('mini_building').value  = data.building  || '';
+  document.getElementById('mini_shop').value      = data.shop      || '';
+  document.getElementById('mini_sampleno').value  = data.sampleno  || '';
+  document.getElementById('mini_workno').value    = data.workno    || '';
+  document.getElementById('mini_rate').value      = data.rate      || 220;
+  document.getElementById('mini_cost_yuan').value = data.yuan      || '';
+  document.getElementById('mini_final').value     = data.finalPrice|| '';
+  document.getElementById('mini_memo').value      = data.memo      || '';
 
-  // 사이즈 필드
   if (data.sizes) Object.keys(data.sizes).forEach(id => {
     const el = document.getElementById(id); if (el) el.value = data.sizes[id];
   });
 
-  // 오더 테이블 복원
-  colorCols = data.colorCols || [];
-  sizeRows  = data.sizeRows  || [];
-  orderData = data.orderData || {};
-  colCounter = colorCols.length; rowCounter = sizeRows.length;
+  colorCols  = data.colorCols  || [];
+  sizeRows   = data.sizeRows   || [];
+  orderData  = data.orderData  || {};
+  colCounter = colorCols.length;
+  rowCounter = sizeRows.length;
   renderOrderTable();
 
-  // 이미지 복원
-  imgList    = data.images || [];
-  imgCurrent = 0;
-  renderImgUI();
-
+  imgList = data.images || []; imgCurrent = 0; renderImgUI();
   calcMini();
 
-  // 미니작지 탭으로 이동
-  showTab('tab-mini', document.querySelector('.tab-btn'));
-  showToast('📋 불러왔습니다: ' + (data.shop || data.sampleno));
+  const miniBtn = document.querySelectorAll('.tab-btn')[0];
+  showTab('tab-mini', miniBtn);
+  showToast('📋 불러왔습니다');
 }
 
-// 휴지통으로 이동 (삭제 대신)
+// ═══════════════════════════════════════════════════════
+//  TRASH
+// ═══════════════════════════════════════════════════════
 function moveToTrash(entryId) {
-  const KEY = 'wansaip_entries';
-  const TKEY = 'wansaip_trash';
+  const KEY = 'wansaip_entries', TKEY = 'wansaip_trash';
   let entries = [], trash = [];
   try { entries = JSON.parse(localStorage.getItem(KEY)  || '[]'); } catch(e) {}
   try { trash   = JSON.parse(localStorage.getItem(TKEY) || '[]'); } catch(e) {}
-
   const idx = entries.findIndex(e => e.id === entryId);
   if (idx === -1) return;
   const [item] = entries.splice(idx, 1);
   item.deletedAt = new Date().toISOString();
   trash.unshift(item);
-
   trySetStorage(KEY,  JSON.stringify(entries));
   trySetStorage(TKEY, JSON.stringify(trash));
   renderSavedList();
   showToast('🗑 휴지통으로 이동했습니다');
 }
 
-// 휴지통에서 복원
 function restoreFromTrash(entryId) {
-  const KEY = 'wansaip_entries';
-  const TKEY = 'wansaip_trash';
+  const KEY = 'wansaip_entries', TKEY = 'wansaip_trash';
   let entries = [], trash = [];
   try { entries = JSON.parse(localStorage.getItem(KEY)  || '[]'); } catch(e) {}
   try { trash   = JSON.parse(localStorage.getItem(TKEY) || '[]'); } catch(e) {}
-
   const idx = trash.findIndex(e => e.id === entryId);
   if (idx === -1) return;
   const [item] = trash.splice(idx, 1);
   delete item.deletedAt;
   entries.unshift(item);
-
   trySetStorage(KEY,  JSON.stringify(entries));
   trySetStorage(TKEY, JSON.stringify(trash));
   renderTrashList();
   showToast('✅ 목록으로 복원했습니다');
 }
 
-// 휴지통에서 영구 삭제
 function deleteFromTrash(entryId) {
   const TKEY = 'wansaip_trash';
   let trash = [];
@@ -1032,12 +1017,11 @@ function deleteFromTrash(entryId) {
   showToast('완전히 삭제했습니다');
 }
 
-// 휴지통 전체 비우기
 function emptyTrash() {
   const TKEY = 'wansaip_trash';
   let trash = [];
   try { trash = JSON.parse(localStorage.getItem(TKEY) || '[]'); } catch(e) {}
-  if (trash.length === 0) { showToast('휴지통이 비어있어요'); return; }
+  if (!trash.length) { showToast('휴지통이 비어있어요'); return; }
   if (!confirm('휴지통을 완전히 비울까요? 복구할 수 없어요.')) return;
   localStorage.removeItem(TKEY);
   renderTrashList();
@@ -1049,45 +1033,21 @@ function toggleDetail(id) {
   if (el) el.classList.toggle('open');
 }
 
+// ═══════════════════════════════════════════════════════
+//  RENDER LIST  (저장목록 & 휴지통 공통)
+// ═══════════════════════════════════════════════════════
 function renderSavedList() {
-  const key = 'wansaip_entries';
+  const KEY = 'wansaip_entries';
   let entries = [];
-  try { entries = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) {}
+  try { entries = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) {}
   const container = document.getElementById('savedList');
-
-  if (entries.length === 0) {
-    container.innerHTML = `<div class="saved-empty">
-      아직 저장된 작지가 없어요<br>
-      <span style="font-size:28px;margin:10px 0;display:block;">📋</span>
-      작지를 작성하고 💾 저장을 눌러보세요
-    </div>`;
+  if (!container) return;
+  if (!entries.length) {
+    container.innerHTML = '<div class="saved-empty">아직 저장된 작지가 없어요<br><span style="font-size:28px;display:block;margin:10px 0;">📋</span>작지를 작성하고 💾 저장을 눌러보세요</div>';
     return;
   }
-
   container.innerHTML = entries.map(e => buildEntryHTML(e, false)).join('');
-
-  // 이벤트 위임으로 버튼 연결 (인라인 onclick 대신)
-  container.onclick = null;
-  container.addEventListener('click', handleSavedListClick, { once: true });
-  // 매번 재등록이 필요하므로 아래처럼 처리
-  container._handler && container.removeEventListener('click', container._handler);
-  container._handler = handleSavedListClick;
-  container.addEventListener('click', container._handler);
-}
-
-function handleSavedListClick(e) {
-  const btn = e.target.closest('button[data-action]');
-  if (!btn) {
-    // 헤더 클릭 → 상세 토글
-    const header = e.target.closest('.saved-item-header');
-    if (header) toggleDetail(header.dataset.id);
-    return;
-  }
-  e.stopPropagation();
-  const action = btn.dataset.action;
-  const id     = btn.dataset.id;
-  if (action === 'load')  loadEntry(id);
-  if (action === 'trash') moveToTrash(id);
+  attachListEvents(container, false);
 }
 
 function renderTrashList() {
@@ -1095,39 +1055,42 @@ function renderTrashList() {
   let trash = [];
   try { trash = JSON.parse(localStorage.getItem(TKEY) || '[]'); } catch(e) {}
   const container = document.getElementById('trashList');
-
-  if (trash.length === 0) {
-    container.innerHTML = `<div class="saved-empty">
-      휴지통이 비어있어요<br>
-      <span style="font-size:28px;margin:10px 0;display:block;">🗑</span>
-    </div>`;
+  if (!container) return;
+  if (!trash.length) {
+    container.innerHTML = '<div class="saved-empty">휴지통이 비어있어요<br><span style="font-size:28px;display:block;margin:10px 0;">🗑</span></div>';
     return;
   }
-
   container.innerHTML = trash.map(e => buildEntryHTML(e, true)).join('');
-
-  container._trashHandler && container.removeEventListener('click', container._trashHandler);
-  container._trashHandler = handleTrashListClick;
-  container.addEventListener('click', container._trashHandler);
+  attachListEvents(container, true);
 }
 
-function handleTrashListClick(e) {
-  const btn = e.target.closest('button[data-action]');
-  if (!btn) {
+function attachListEvents(container, isTrash) {
+  // 기존 리스너 완전 제거 (cloneNode 방식)
+  const fresh = container.cloneNode(true);
+  container.parentNode.replaceChild(fresh, container);
+
+  fresh.addEventListener('click', e => {
+    // 버튼 클릭
+    const btn = e.target.closest('button[data-action]');
+    if (btn) {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      const id     = btn.dataset.id;
+      if (action === 'load')    loadEntry(id);
+      if (action === 'trash')   moveToTrash(id);
+      if (action === 'restore') restoreFromTrash(id);
+      if (action === 'delete')  deleteFromTrash(id);
+      return;
+    }
+    // 헤더 클릭 → 펼치기
     const header = e.target.closest('.saved-item-header');
-    if (header) toggleDetail(header.dataset.id);
-    return;
-  }
-  e.stopPropagation();
-  const action = btn.dataset.action;
-  const id     = btn.dataset.id;
-  if (action === 'restore') restoreFromTrash(id);
-  if (action === 'delete')  deleteFromTrash(id);
+    if (header && header.dataset.id) toggleDetail(header.dataset.id);
+  });
 }
 
 function buildEntryHTML(e, isTrash) {
-  const dt = e.date ? e.date.replace(/-/g,'.') : '날짜 없음';
-  const baseDt = isTrash ? new Date(e.deletedAt) : new Date(e.savedAt);
+  const dt      = e.date ? e.date.replace(/-/g,'.') : '날짜 없음';
+  const baseDt  = new Date(isTrash ? e.deletedAt : e.savedAt);
   const baseStr = baseDt.getFullYear() + '.' +
     String(baseDt.getMonth()+1).padStart(2,'0') + '.' +
     String(baseDt.getDate()).padStart(2,'0') + ' ' +
@@ -1135,66 +1098,60 @@ function buildEntryHTML(e, isTrash) {
     String(baseDt.getMinutes()).padStart(2,'0');
 
   let totalQty = 0;
-  if (e.sizeRows && e.colorCols && e.orderData) {
-    e.sizeRows.forEach(s => (e.colorCols||[]).forEach(c => {
-      totalQty += parseInt(((e.orderData[s.id])||{})[c.id]||0);
-    }));
-  }
+  (e.sizeRows||[]).forEach(s => (e.colorCols||[]).forEach(c => {
+    totalQty += parseInt(((e.orderData||{})[s.id]||{})[c.id]||0);
+  }));
 
-  const rate     = parseFloat(e.rate) || 220;
-  const yuan     = parseFloat(e.yuan) || 0;
-  const costKRW  = yuan ? Math.round(yuan * rate * 1.1 * 1.15).toLocaleString() + '원' : '—';
-  const finalP   = e.finalPrice ? parseInt(e.finalPrice).toLocaleString() + '원' : '—';
-  const colorList= (e.colorCols||[]).map(c=>c.name).filter(Boolean).join(', ') || '—';
-  const sizeList = (e.sizeRows||[]).map(s=>s.name).filter(Boolean).join(' / ') || '—';
+  const rate    = parseFloat(e.rate) || 220;
+  const yuan    = parseFloat(e.yuan) || 0;
+  const costKRW = yuan ? Math.round(yuan * rate * 1.1 * 1.15).toLocaleString() + '원' : '—';
+  const finalP  = e.finalPrice ? parseInt(e.finalPrice).toLocaleString() + '원' : '—';
+  const colors  = (e.colorCols||[]).map(c=>c.name).filter(Boolean).join(', ') || '—';
+  const sizes   = (e.sizeRows||[]).map(s=>s.name).filter(Boolean).join(' / ') || '—';
+  const title   = [e.shop, e.sampleno].filter(Boolean).join(' · ') || '(미입력)';
 
-  const thumb = e.images && e.images.length
+  const thumb = (e.images && e.images.length)
     ? `<img src="${e.images[0]}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;" alt="">`
     : `<div style="width:48px;height:48px;background:var(--gray-100);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📷</div>`;
 
   const actionBtns = isTrash
     ? `<button class="btn-load" data-action="restore" data-id="${e.id}" style="background:#2a9d7a;color:white;">복원</button>
-       <button class="btn-del" data-action="delete"  data-id="${e.id}" style="color:#c0392b;font-size:13px;">✕</button>`
+       <button class="btn-del"  data-action="delete"  data-id="${e.id}" style="color:#c0392b;font-size:15px;padding:4px 6px;">✕</button>`
     : `<button class="btn-load" data-action="load"  data-id="${e.id}">불러오기</button>
-       <button class="btn-del" data-action="trash"  data-id="${e.id}">🗑</button>`;
+       <button class="btn-del"  data-action="trash" data-id="${e.id}">🗑</button>`;
 
-  const multiImgs = e.images && e.images.length > 1
+  const multiImgs = (e.images && e.images.length > 1)
     ? `<div style="display:flex;gap:6px;overflow-x:auto;padding:10px 0;scrollbar-width:none;">
-        ${e.images.map(src => `<img src="${src}" style="height:70px;min-width:70px;object-fit:cover;border-radius:5px;flex-shrink:0;" alt="">`).join('')}
+        ${e.images.map(src=>`<img src="${src}" style="height:70px;min-width:70px;object-fit:cover;border-radius:5px;flex-shrink:0;" alt="">`).join('')}
        </div>` : '';
 
-  return `
-  <div class="saved-item">
+  return `<div class="saved-item">
     <div class="saved-item-header" data-id="${e.id}">
       ${thumb}
       <div style="flex:1;min-width:0;">
-        <div class="saved-item-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-          ${e.shop || e.sampleno || '(미입력)'}${e.sampleno && e.shop ? ' · ' + e.sampleno : ''}
-        </div>
-        <div class="saved-item-meta">사입일 ${dt} &nbsp;|&nbsp; ${isTrash ? '삭제' : '저장'} ${baseStr}</div>
+        <div class="saved-item-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escAttr(title)}</div>
+        <div class="saved-item-meta">사입일 ${dt} · ${isTrash?'삭제':'저장'} ${baseStr}</div>
       </div>
       <div class="saved-item-actions">${actionBtns}</div>
     </div>
     <div class="saved-item-body" id="detail_${e.id}">
       ${multiImgs}
-      <div class="saved-detail-row"><span class="saved-detail-label">건물</span><span class="saved-detail-value">${e.building||'—'}</span></div>
-      <div class="saved-detail-row"><span class="saved-detail-label">작지번호</span><span class="saved-detail-value">${e.workno||'—'}</span></div>
-      <div class="saved-detail-row"><span class="saved-detail-label">납품가</span><span class="saved-detail-value">${yuan ? yuan + '元' : '—'}</span></div>
-      <div class="saved-detail-row"><span class="saved-detail-label">원가(관부가세포함)</span><span class="saved-detail-value">${costKRW}</span></div>
+      <div class="saved-detail-row"><span class="saved-detail-label">건물</span><span class="saved-detail-value">${escAttr(e.building||'—')}</span></div>
+      <div class="saved-detail-row"><span class="saved-detail-label">작지번호</span><span class="saved-detail-value">${escAttr(e.workno||'—')}</span></div>
+      <div class="saved-detail-row"><span class="saved-detail-label">납품가</span><span class="saved-detail-value">${yuan ? yuan+'元' : '—'}</span></div>
+      <div class="saved-detail-row"><span class="saved-detail-label">원가(관부가세)</span><span class="saved-detail-value">${costKRW}</span></div>
       <div class="saved-detail-row"><span class="saved-detail-label">최종 판가</span><span class="saved-detail-value" style="color:var(--accent)">${finalP}</span></div>
-      <div class="saved-detail-row"><span class="saved-detail-label">사이즈</span><span class="saved-detail-value">${sizeList}</span></div>
-      <div class="saved-detail-row"><span class="saved-detail-label">컬러</span><span class="saved-detail-value">${colorList}</span></div>
+      <div class="saved-detail-row"><span class="saved-detail-label">사이즈</span><span class="saved-detail-value">${escAttr(sizes)}</span></div>
+      <div class="saved-detail-row"><span class="saved-detail-label">컬러</span><span class="saved-detail-value">${escAttr(colors)}</span></div>
       <div class="saved-detail-row"><span class="saved-detail-label">총 수량</span><span class="saved-detail-value">${totalQty}장</span></div>
-      ${e.memo ? `<div class="saved-detail-row"><span class="saved-detail-label">메모</span><span class="saved-detail-value" style="max-width:60%;text-align:right;word-break:break-all;">${e.memo}</span></div>` : ''}
+      ${e.memo ? `<div class="saved-detail-row"><span class="saved-detail-label">메모</span><span class="saved-detail-value" style="max-width:60%;text-align:right;word-break:break-all;">${escAttr(e.memo)}</span></div>` : ''}
     </div>
   </div>`;
 }
-  }).join('');
-}
 
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 //  TOAST
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 let toastTimer;
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -1204,77 +1161,48 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-// ──────────────────────────────────────────
-//  PWA — Service Worker 등록 (오프라인 캐시)
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+//  PWA — Service Worker
+// ═══════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
   const swCode = `
-const CACHE = 'wansaip-v1';
-self.addEventListener('install', e => {
-  self.skipWaiting();
-});
-self.addEventListener('activate', e => {
-  e.waitUntil(clients.claim());
-});
-self.addEventListener('fetch', e => {
-  // 구글 폰트는 네트워크 우선, 나머지는 캐시 우선
-  if (e.request.url.includes('fonts.googleapis') || e.request.url.includes('fonts.gstatic')) {
-    e.respondWith(
-      caches.open(CACHE).then(cache =>
-        fetch(e.request).then(res => { cache.put(e.request, res.clone()); return res; })
-        .catch(() => caches.match(e.request))
-      )
-    );
-  } else {
-    e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request))
-    );
+const CACHE='wansaip-v2';
+self.addEventListener('install',()=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(clients.claim()));
+self.addEventListener('fetch',e=>{
+  if(e.request.url.includes('fonts.google')||e.request.url.includes('fonts.gstatic')){
+    e.respondWith(caches.open(CACHE).then(cache=>
+      fetch(e.request).then(res=>{cache.put(e.request,res.clone());return res;}).catch(()=>caches.match(e.request))
+    ));
   }
-});
-  `;
-  const blob = new Blob([swCode], {type: 'application/javascript'});
-  const swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl)
-    .then(() => console.log('SW registered'))
-    .catch(err => console.log('SW error:', err));
+});`;
+  const blob = new Blob([swCode], {type:'application/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
 }
 
-// ──────────────────────────────────────────
-//  PWA — 홈 화면 추가 안내 배너 (iOS)
-// ──────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  // iOS Safari에서 standalone이 아닐 때 안내 표시
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isStandalone = window.navigator.standalone === true;
-  const dismissed = localStorage.getItem('pwa_banner_dismissed');
-
-  if (isIOS && !isStandalone && !dismissed) {
-    setTimeout(() => {
-      const banner = document.createElement('div');
-      banner.id = 'pwaBanner';
-      banner.style.cssText = `
-        position:fixed; bottom:72px; left:12px; right:12px; z-index:9999;
-        background:#1a1a1a; border:1px solid #C8A96E; border-radius:12px;
-        padding:14px 16px; display:flex; align-items:flex-start; gap:12px;
-        box-shadow:0 4px 20px rgba(0,0,0,0.4);
-      `;
-      banner.innerHTML = `
-        <div style="font-size:28px;line-height:1;flex-shrink:0;">📲</div>
-        <div style="flex:1;">
-          <div style="color:#C8A96E;font-weight:700;font-size:13px;margin-bottom:4px;">앱으로 설치하기</div>
-          <div style="color:#AEAAA0;font-size:11px;line-height:1.6;">
-            Safari 하단의 <strong style="color:white;">공유 버튼 □↑</strong> 을 누르고<br>
-            <strong style="color:white;">"홈 화면에 추가"</strong> 를 선택하세요.<br>
-            앱처럼 바로 실행할 수 있어요!
-          </div>
-        </div>
-        <button onclick="document.getElementById('pwaBanner').remove();localStorage.setItem('pwa_banner_dismissed','1')"
-          style="background:none;border:none;color:#6B6760;font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;">✕</button>
-      `;
-      document.body.appendChild(banner);
-    }, 2000);
-  }
-});
+// ═══════════════════════════════════════════════════════
+//  PWA — 홈 화면 추가 배너
+// ═══════════════════════════════════════════════════════
+function showInstallBanner() {
+  const banner = document.createElement('div');
+  banner.id = 'pwaBanner';
+  banner.style.cssText = 'position:fixed;bottom:72px;left:12px;right:12px;z-index:9999;background:#1a1a1a;border:1px solid #C8A96E;border-radius:12px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);';
+  banner.innerHTML = `
+    <div style="font-size:28px;line-height:1;flex-shrink:0;">📲</div>
+    <div style="flex:1;">
+      <div style="color:#C8A96E;font-weight:700;font-size:13px;margin-bottom:4px;">앱으로 설치하기</div>
+      <div style="color:#AEAAA0;font-size:11px;line-height:1.6;">
+        Safari 하단 <strong style="color:white;">공유 버튼 □↑</strong> 누르고<br>
+        <strong style="color:white;">"홈 화면에 추가"</strong> 선택하세요
+      </div>
+    </div>
+    <button id="pwaBannerClose" style="background:none;border:none;color:#6B6760;font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;">✕</button>`;
+  document.body.appendChild(banner);
+  document.getElementById('pwaBannerClose').addEventListener('click', () => {
+    banner.remove();
+    localStorage.setItem('pwa_banner_dismissed', '1');
+  });
+}
 </script>
 </body>
 </html>
