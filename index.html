@@ -433,8 +433,8 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
     <div class="card-body">
       <div class="rate-row">
         <div class="rate-label">환율</div>
-        <input class="rate-input" type="number" id="mini_rate" value="220" oninput="calcMini()">
-        <div class="rate-unit">원 / 元</div>
+        <input class="rate-input" type="number" id="mini_rate" value="225" readonly style="opacity:0.6;cursor:default;">
+        <div class="rate-unit">원 / 元 (고정)</div>
       </div>
       <div class="field-row">
         <div class="field-group">
@@ -845,7 +845,7 @@ function resetForm() {
    'mini_cost_yuan','mini_final','mini_memo'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  document.getElementById('mini_rate').value = 220;
+  document.getElementById('mini_rate').value = 225;
   ['mini_krw','mini_tax10','mini_tax15','mini_x2','mini_x23','mini_x25','mini_x28','mini_x3']
     .forEach(id => { document.getElementById(id).textContent = '—'; });
   document.querySelectorAll('[id^="sz_"]').forEach(el => { el.value = ''; });
@@ -948,7 +948,7 @@ function loadEntry(entryId) {
   document.getElementById('mini_shop').value      = data.shop      || '';
   document.getElementById('mini_sampleno').value  = data.sampleno  || '';
   document.getElementById('mini_workno').value    = data.workno    || '';
-  document.getElementById('mini_rate').value      = data.rate      || 220;
+  document.getElementById('mini_rate').value      = data.rate      || 225;
   document.getElementById('mini_cost_yuan').value = data.yuan      || '';
   document.getElementById('mini_final').value     = data.finalPrice|| '';
   document.getElementById('mini_memo').value      = data.memo      || '';
@@ -1102,13 +1102,13 @@ function buildEntryHTML(e, isTrash) {
     totalQty += parseInt(((e.orderData||{})[s.id]||{})[c.id]||0);
   }));
 
-  const rate    = parseFloat(e.rate) || 220;
+  const rate    = parseFloat(e.rate) || 225;
   const yuan    = parseFloat(e.yuan) || 0;
   const costKRW = yuan ? Math.round(yuan * rate * 1.1 * 1.15).toLocaleString() + '원' : '—';
   const finalP  = e.finalPrice ? parseInt(e.finalPrice).toLocaleString() + '원' : '—';
   const colors  = (e.colorCols||[]).map(c=>c.name).filter(Boolean).join(', ') || '—';
   const sizes   = (e.sizeRows||[]).map(s=>s.name).filter(Boolean).join(' / ') || '—';
-  const title   = [e.shop, e.sampleno].filter(Boolean).join(' · ') || '(미입력)';
+  const title   = e.workno || [e.shop, e.sampleno].filter(Boolean).join(' · ') || '(미입력)';
 
   const thumb = (e.images && e.images.length)
     ? `<img src="${e.images[0]}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;" alt="">`
@@ -1130,7 +1130,8 @@ function buildEntryHTML(e, isTrash) {
       ${thumb}
       <div style="flex:1;min-width:0;">
         <div class="saved-item-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escAttr(title)}</div>
-        <div class="saved-item-meta">사입일 ${dt} · ${isTrash?'삭제':'저장'} ${baseStr}</div>
+        <div class="saved-item-meta">${[e.shop, e.sampleno].filter(Boolean).join(' · ') ? escAttr([e.shop,e.sampleno].filter(Boolean).join(' · ')) + ' &nbsp;|&nbsp; ' : ''}사입일 ${dt}</div>
+        <div class="saved-item-meta">${isTrash?'삭제':'저장'} ${baseStr}</div>
       </div>
       <div class="saved-item-actions">${actionBtns}</div>
     </div>
