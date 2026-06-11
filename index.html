@@ -167,8 +167,9 @@ body { font-family: var(--font-kr); background: var(--gray-100); color: var(--bl
 }
 .final-price-label { font-size: 11px; color: var(--gray-400); font-weight: 500; }
 .final-price-input {
-  background: transparent; border: none; outline: none; color: var(--accent);
-  font-size: 16px; font-weight: 700; font-family: var(--font-kr); text-align: right; width: 140px;
+  background: transparent; border: 1px solid #333; outline: none; color: white;
+  font-size: 13px; font-weight: 700; font-family: var(--font-kr);
+  text-align: right; width: 80px; border-radius: 4px; padding: 4px 6px;
 }
 
 /* SIZE */
@@ -456,9 +457,9 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
         <div class="calc-row"><div class="calc-label">예상 판가 ×3.0</div><div class="calc-value" id="mini_x3">—</div></div>
         <div class="final-price-row">
           <div class="final-price-label">✅ 최종 판가</div>
-          <div style="display:flex;align-items:center;gap:4px;">
-            <input class="final-price-input" id="mini_final" type="number" placeholder="직접 입력" oninput="updateFinalDisplay()">
-            <span id="mini_final_display" style="color:#C8A96E;font-size:12px;font-weight:700;white-space:nowrap;"></span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input class="final-price-input" id="mini_final" type="number" placeholder="숫자 입력" oninput="updateFinalDisplay()" style="width:90px;font-size:12px;">
+            <span id="mini_final_display" style="color:#C8A96E;font-size:15px;font-weight:700;white-space:nowrap;min-width:80px;text-align:right;"></span>
           </div>
         </div>
       </div>
