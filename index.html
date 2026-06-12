@@ -241,7 +241,57 @@ body { font-family: var(--font-kr); background: var(--gray-100); color: var(--bl
 .spacer-bottom { height: 70px; }
 input, textarea, select { -webkit-appearance: none; appearance: none; }
 
-/* iOS Safe Area (노치/홈바 대응) */
+/* 사이즈 옵션 탭 */
+.size-opt-tab {
+  flex-shrink: 0; padding: 5px 12px; border-radius: 15px;
+  background: var(--gray-100); border: 1.5px solid var(--gray-200);
+  font-size: 11px; font-weight: 700; color: var(--gray-600);
+  cursor: pointer; font-family: var(--font-kr); white-space: nowrap;
+  display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+}
+.size-opt-tab.active {
+  background: var(--black); color: var(--accent); border-color: var(--black);
+}
+.size-opt-tab .del-opt {
+  font-size: 10px; color: #888; cursor: pointer; padding: 0 2px;
+  background: none; border: none; font-family: var(--font-kr);
+}
+.size-opt-tab.active .del-opt { color: var(--accent); }
+.size-type-btn {
+  flex: 1; padding: 8px; border: 1.5px solid var(--gray-200); border-radius: 5px;
+  background: var(--white); color: var(--gray-600); font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: var(--font-kr); transition: all 0.15s;
+}
+.size-type-btn.active {
+  background: var(--black); color: var(--accent); border-color: var(--black);
+}
+
+/* 사이즈 행 */
+.size-measure-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+  border: 1px solid var(--gray-200); border-radius: 4px; overflow: hidden;
+  background: var(--white);
+}
+.size-measure-label {
+  background: var(--gray-100); color: var(--gray-600); font-size: 10px; font-weight: 700;
+  padding: 0 8px; min-width: 90px; text-align: center; border-right: 1px solid var(--gray-200);
+  align-self: stretch; display: flex; align-items: center; justify-content: center;
+}
+.size-measure-label input {
+  background: transparent; border: none; outline: none; font-size: 10px; font-weight: 700;
+  font-family: var(--font-kr); color: var(--gray-600); text-align: center; width: 100%;
+}
+.size-measure-input {
+  flex: 1; border: none; outline: none; padding: 9px 8px; font-size: 12px;
+  font-family: var(--font-kr); background: transparent; text-align: right;
+}
+.size-measure-del {
+  background: none; border: none; color: var(--gray-400); cursor: pointer;
+  padding: 8px 8px; font-size: 13px; flex-shrink: 0;
+}
+
+/* 사이즈 추가 버튼 행 */
+.size-add-row { display: flex; gap: 6px; margin-bottom: 6px; }
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .bottom-bar {
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
@@ -342,13 +392,84 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
 </div>
 
 <div class="tab-bar">
-  <button class="tab-btn active" onclick="showTab('tab-mini', this)">📋 미니 작지</button>
+  <button class="tab-btn active" onclick="showTab('tab-calc', this)">💴 단가 계산기</button>
+  <button class="tab-btn" onclick="showTab('tab-mini', this)">📋 미니 작지</button>
   <button class="tab-btn" onclick="showTab('tab-saved', this)">🗂 저장 목록</button>
   <button class="tab-btn" onclick="showTab('tab-trash', this)">🗑 휴지통</button>
 </div>
 
+<!-- ═══════════════ 단가 계산기 ═══════════════ -->
+<div id="tab-calc" class="panel active">
+
+  <div class="card">
+    <div class="card-header"><span class="dot"></span>환율 설정</div>
+    <div class="card-body">
+      <div class="rate-row">
+        <div class="rate-label">환율</div>
+        <input class="rate-input" type="number" id="calc_rate" value="225" readonly style="opacity:0.6;cursor:default;" oninput="calcPrice()">
+        <button id="calcRateLockBtn" onclick="toggleCalcRateLock()" style="background:var(--accent);border:none;border-radius:4px;padding:5px 10px;font-size:11px;font-weight:700;color:#111;cursor:pointer;font-family:var(--font-kr);white-space:nowrap;">🔒 고정</button>
+        <div class="rate-unit">원/元</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="dot"></span>납품가 입력</div>
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">납품가 (元)</div>
+          <input class="field-input" type="number" id="calc_yuan" placeholder="예: 30" oninput="calcPrice()">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="dot"></span>자동 계산 결과</div>
+    <div class="card-body">
+      <div class="calc-box" style="margin-bottom:0;">
+        <div class="calc-row">
+          <div class="calc-label">환율 적용 (원화)</div>
+          <div class="calc-value" id="calc_krw">—</div>
+        </div>
+        <div class="calc-row">
+          <div class="calc-label">지사 마진 10% 포함</div>
+          <div class="calc-value" id="calc_margin">—</div>
+        </div>
+        <div class="calc-row">
+          <div class="calc-label">관부가세 15% 포함</div>
+          <div class="calc-value" id="calc_tax">—</div>
+        </div>
+        <div class="divider"></div>
+        <div class="calc-row">
+          <div class="calc-label" style="font-weight:700;color:var(--black);">예상 판매가 ×2.0</div>
+          <div class="calc-value" style="color:var(--accent);font-size:16px;" id="calc_x2">—</div>
+        </div>
+        <div class="calc-row">
+          <div class="calc-label" style="font-weight:700;color:var(--black);">예상 판매가 ×2.3</div>
+          <div class="calc-value" style="color:var(--accent);font-size:16px;" id="calc_x23">—</div>
+        </div>
+        <div class="calc-row">
+          <div class="calc-label">예상 판매가 ×2.5</div>
+          <div class="calc-value" id="calc_x25">—</div>
+        </div>
+        <div class="calc-row">
+          <div class="calc-label">예상 판매가 ×2.8</div>
+          <div class="calc-value" id="calc_x28">—</div>
+        </div>
+        <div class="calc-row">
+          <div class="calc-label">예상 판매가 ×3.0</div>
+          <div class="calc-value" id="calc_x3">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
 <!-- ═══════════════ 미니 작지 ═══════════════ -->
-<div id="tab-mini" class="panel active">
+<div id="tab-mini" class="panel">
 
   <!-- 기본 정보 -->
   <div class="card">
@@ -382,6 +503,12 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
         <div class="field-group">
           <div class="field-label">작지번호</div>
           <input class="field-input" type="text" id="mini_workno" placeholder="예: CB-26S20000-TS">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">혼용률</div>
+          <input class="field-input" type="text" id="mini_material" placeholder="예: 폴리100%, 면80%+폴리20%">
         </div>
       </div>
     </div>
@@ -482,6 +609,30 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
     </div>
   </div>
 
+  <!-- 사이즈 치수 -->
+  <div class="card">
+    <div class="card-header"><span class="dot"></span>사이즈 치수</div>
+    <div class="card-body">
+
+      <!-- 상의/하의/세트 선택 -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <button class="size-type-btn active" data-type="top"    onclick="setSizeType('top',this)">상의</button>
+        <button class="size-type-btn"        data-type="bottom" onclick="setSizeType('bottom',this)">하의</button>
+        <button class="size-type-btn"        data-type="set"    onclick="setSizeType('set',this)">세트</button>
+      </div>
+
+      <!-- 사이즈 옵션 탭 바 + 추가 버튼 -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;">
+        <div id="sizeOptionTabs" style="display:flex;gap:5px;flex:1;overflow-x:auto;scrollbar-width:none;"></div>
+        <button onclick="addSizeOption()" style="flex-shrink:0;padding:5px 10px;background:var(--accent);color:#111;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font-kr);white-space:nowrap;">+ 사이즈</button>
+      </div>
+
+      <!-- 사이즈별 치수 입력 영역 -->
+      <div id="sizeOptionContent"></div>
+
+    </div>
+  </div>
+
   <!-- 메모 -->
   <div class="card">
     <div class="card-header"><span class="dot"></span>메모</div>
@@ -505,7 +656,10 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
 <div class="spacer-bottom"></div>
 
 <!-- 탭별 하단 버튼 -->
-<div class="bottom-bar" id="bar-mini">
+<div class="bottom-bar" id="bar-calc" style="display:flex;">
+  <button class="btn btn-secondary" onclick="document.getElementById('calc_yuan').value='';calcPrice();">↺ 초기화</button>
+</div>
+<div class="bottom-bar" id="bar-mini" style="display:none;">
   <button class="btn btn-secondary" onclick="clearForm()">↺ 초기화</button>
   <button class="btn btn-save" onclick="saveEntry()">💾 저장</button>
   <button class="btn btn-primary" onclick="window.print()">🖨 인쇄</button>
@@ -541,6 +695,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   addSizeRow('S'); addSizeRow('M'); addSizeRow('L');
   addColorCol('컬러1'); addColorCol('컬러2');
+  initSizeSections();
   renderSavedList();
   renderTrashList();
 
@@ -560,12 +715,215 @@ function showTab(id, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
+  document.getElementById('bar-calc').style.display  = id === 'tab-calc'  ? 'flex' : 'none';
   document.getElementById('bar-mini').style.display  = id === 'tab-mini'  ? 'flex' : 'none';
   document.getElementById('bar-saved').style.display = id === 'tab-saved' ? 'flex' : 'none';
   document.getElementById('bar-trash').style.display = id === 'tab-trash' ? 'flex' : 'none';
   if (id === 'tab-saved') renderSavedList();
   if (id === 'tab-trash') renderTrashList();
 }
+
+// ═══════════════════════════════════════════════════════
+//  단가 계산기 탭
+// ═══════════════════════════════════════════════════════
+function calcPrice() {
+  const rate = parseFloat(document.getElementById('calc_rate').value) || 0;
+  const yuan = parseFloat(document.getElementById('calc_yuan').value) || 0;
+  const ids  = ['calc_krw','calc_margin','calc_tax','calc_x2','calc_x23','calc_x25','calc_x28','calc_x3'];
+  if (!yuan || !rate) { ids.forEach(id => { document.getElementById(id).textContent = '—'; }); return; }
+  const krw    = yuan * rate;
+  const margin = krw * 1.1;
+  const tax    = margin * 1.15;
+  document.getElementById('calc_krw').textContent    = fmt(krw);
+  document.getElementById('calc_margin').textContent = fmt(margin);
+  document.getElementById('calc_tax').textContent    = fmt(tax);
+  document.getElementById('calc_x2').textContent     = fmt(tax * 2);
+  document.getElementById('calc_x23').textContent    = fmt(tax * 2.3);
+  document.getElementById('calc_x25').textContent    = fmt(tax * 2.5);
+  document.getElementById('calc_x28').textContent    = fmt(tax * 2.8);
+  document.getElementById('calc_x3').textContent     = fmt(tax * 3);
+}
+
+function toggleCalcRateLock() {
+  const inp = document.getElementById('calc_rate');
+  const btn = document.getElementById('calcRateLockBtn');
+  if (inp.readOnly) {
+    inp.readOnly = false; inp.style.opacity = '1'; inp.style.cursor = 'text';
+    btn.textContent = '🔓 편집중'; btn.style.background = '#555'; btn.style.color = 'white';
+    inp.focus();
+  } else {
+    inp.readOnly = true; inp.style.opacity = '0.6'; inp.style.cursor = 'default';
+    btn.textContent = '🔒 고정'; btn.style.background = 'var(--accent)'; btn.style.color = '#111';
+    calcPrice();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  사이즈 치수 섹션 (사이즈 옵션 탭 방식)
+// ═══════════════════════════════════════════════════════
+const TOP_FIELDS    = ['총기장','어깨넓이','가슴둘레','밑단둘레','소매기장','암홀','소매통둘레','소매입구둘레'];
+const BOTTOM_FIELDS = ['총기장','허리둘레(최소)','허리둘레(최대)','힙둘레','허벅지둘레','밑단둘레','오비','앞밑위'];
+
+let currentSizeType = 'top';
+let sizeOptions = [];
+let activeSizeOptId = null;
+let sizeOptCounter = 0;
+
+function initSizeSections() {
+  sizeOptions = []; activeSizeOptId = null; sizeOptCounter = 0;
+  addSizeOption('FREE');
+}
+
+function addSizeOption(defaultName) {
+  sizeOptCounter++;
+  const id = 'sopt_' + sizeOptCounter;
+  sizeOptions.push({
+    id, name: defaultName || '',
+    measures: {
+      top:        TOP_FIELDS.map(l => ({ label: l, value: '' })),
+      bottom:     BOTTOM_FIELDS.map(l => ({ label: l, value: '' })),
+      set_top:    TOP_FIELDS.map(l => ({ label: l, value: '' })),
+      set_bottom: BOTTOM_FIELDS.map(l => ({ label: l, value: '' }))
+    }
+  });
+  activeSizeOptId = id;
+  renderSizeOptionTabs();
+  renderSizeOptionContent();
+}
+
+function removeSizeOption(id, e) {
+  if (e) e.stopPropagation();
+  if (sizeOptions.length <= 1) { showToast('최소 1개 사이즈 옵션은 필요해요'); return; }
+  saveSizeOptionMeasures();
+  sizeOptions = sizeOptions.filter(o => o.id !== id);
+  if (activeSizeOptId === id) activeSizeOptId = sizeOptions[0].id;
+  renderSizeOptionTabs();
+  renderSizeOptionContent();
+}
+
+function selectSizeOption(id) {
+  saveSizeOptionMeasures();
+  activeSizeOptId = id;
+  renderSizeOptionTabs();
+  renderSizeOptionContent();
+}
+
+function saveSizeOptionMeasures() {
+  const opt = sizeOptions.find(o => o.id === activeSizeOptId);
+  if (!opt) return;
+  ['top','bottom','set_top','set_bottom'].forEach(key => {
+    const container = document.getElementById('smRows_' + key);
+    if (!container) return;
+    opt.measures[key] = Array.from(container.querySelectorAll('.size-measure-row')).map(row => ({
+      label: row.querySelector('.sm-label-input').value,
+      value: row.querySelector('.sm-val-input').value
+    }));
+  });
+  const nameInput = document.getElementById('sizeOptNameInput');
+  if (nameInput) opt.name = nameInput.value;
+}
+
+function renderSizeOptionTabs() {
+  const tabBar = document.getElementById('sizeOptionTabs');
+  if (!tabBar) return;
+  tabBar.innerHTML = sizeOptions.map(o => `
+    <button class="size-opt-tab${o.id === activeSizeOptId ? ' active' : ''}"
+      onclick="selectSizeOption('${o.id}')">
+      ${escAttr(o.name || '?')}
+      <span class="del-opt" onclick="removeSizeOption('${o.id}', event)">✕</span>
+    </button>`).join('');
+}
+
+function renderSizeOptionContent() {
+  const opt = sizeOptions.find(o => o.id === activeSizeOptId);
+  const container = document.getElementById('sizeOptionContent');
+  if (!opt || !container) return;
+
+  const typeKeys = currentSizeType === 'set' ? ['set_top','set_bottom'] : [currentSizeType];
+  const labels   = { top:'상의', bottom:'하의', set_top:'상의 (단위: cm)', set_bottom:'하의 (단위: cm)' };
+
+  let html = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+    <div style="flex:1;border:1px solid var(--gray-200);border-radius:4px;overflow:hidden;display:flex;">
+      <div style="background:var(--gray-100);color:var(--gray-600);font-size:10px;font-weight:700;padding:0 8px;min-width:60px;text-align:center;border-right:1px solid var(--gray-200);display:flex;align-items:center;justify-content:center;">사이즈명</div>
+      <input id="sizeOptNameInput" class="field-input" type="text" value="${escAttr(opt.name)}"
+        placeholder="예: FREE, S, M, L"
+        oninput="sizeOptions.find(o=>o.id==='${opt.id}').name=this.value;renderSizeOptionTabs();"
+        style="min-height:36px;">
+    </div>
+  </div>`;
+
+  typeKeys.forEach(key => {
+    html += `<div style="background:var(--gray-200);font-size:10px;font-weight:700;text-align:center;padding:5px;border-radius:3px;margin-bottom:8px;">${labels[key] || key} (단위: cm)</div>
+    <div id="smRows_${key}">`;
+    (opt.measures[key] || []).forEach(item => { html += buildSmRow(item.label, item.value); });
+    html += `</div>
+    <button onclick="addSmRow('${key}')"
+      style="width:100%;padding:8px;background:none;border:1.5px dashed var(--gray-200);border-radius:4px;font-size:11px;color:var(--gray-600);cursor:pointer;font-family:var(--font-kr);margin-bottom:12px;">
+      + 항목 추가
+    </button>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function buildSmRow(label, value) {
+  return `<div class="size-measure-row">
+    <div class="size-measure-label">
+      <input class="sm-label-input" type="text" value="${escAttr(label)}" placeholder="항목명"
+        style="background:transparent;border:none;outline:none;font-size:10px;font-weight:700;font-family:var(--font-kr);color:var(--gray-600);text-align:center;width:100%;">
+    </div>
+    <input class="sm-val-input size-measure-input" type="text" value="${escAttr(value)}" placeholder="치수 입력">
+    <button class="size-measure-del" onclick="this.closest('.size-measure-row').remove()">✕</button>
+  </div>`;
+}
+
+function addSmRow(key) {
+  saveSizeOptionMeasures();
+  const container = document.getElementById('smRows_' + key);
+  if (!container) return;
+  const div = document.createElement('div');
+  div.innerHTML = buildSmRow('', '');
+  container.appendChild(div.firstElementChild);
+}
+
+function setSizeType(type, btn) {
+  saveSizeOptionMeasures();
+  currentSizeType = type;
+  document.querySelectorAll('.size-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSizeOptionContent();
+}
+
+function getSizeMeasureData() {
+  saveSizeOptionMeasures();
+  return { type: currentSizeType, options: JSON.parse(JSON.stringify(sizeOptions)) };
+}
+
+function restoreSizeMeasureData(data) {
+  if (!data || !data.options || !data.options.length) { initSizeSections(); return; }
+  currentSizeType = data.type || 'top';
+  document.querySelectorAll('.size-type-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.type === currentSizeType);
+  });
+  sizeOptions = data.options;
+  sizeOptCounter = sizeOptions.length;
+  activeSizeOptId = sizeOptions[0].id;
+  renderSizeOptionTabs();
+  renderSizeOptionContent();
+}
+
+function resetSizeSections() {
+  currentSizeType = 'top';
+  document.querySelectorAll('.size-type-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.type === 'top');
+  });
+  initSizeSections();
+}
+
+// 하위 호환
+function renderSizeMeasures() {}
+function appendSizeMeasureRow() {}
+function addSizeMeasureRow(key) { addSmRow(key); }
 
 // ═══════════════════════════════════════════════════════
 //  ORDER TABLE  (사이즈 = 행, 컬러 = 열)
@@ -835,7 +1193,7 @@ function calcMini() {
 //  FORM RESET
 // ═══════════════════════════════════════════════════════
 function resetForm() {
-  ['mini_date','mini_building','mini_shop','mini_sampleno','mini_workno',
+  ['mini_date','mini_building','mini_shop','mini_sampleno','mini_workno','mini_material',
    'mini_cost_yuan','mini_final','mini_memo'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
@@ -851,6 +1209,7 @@ function resetForm() {
   const saveBtn = document.querySelector('#bar-mini .btn-save');
   if (saveBtn) saveBtn.textContent = '💾 저장';
   updateFinalDisplay();
+  resetSizeSections();
 }
 function clearForm() {
   if (!confirm('현재 입력 내용을 모두 초기화할까요?')) return;
@@ -880,29 +1239,23 @@ function getFormData() {
     if (row) row.name = inp.value;
   });
 
-  const szIds = ['sz_top_opt','sz_top_1','sz_top_2','sz_top_3','sz_top_4','sz_top_5',
-                 'sz_top_6','sz_top_7','sz_top_8','sz_top_9','sz_top_rec',
-                 'sz_bot_opt','sz_bot_1','sz_bot_2','sz_bot_3','sz_bot_4','sz_bot_5',
-                 'sz_bot_6','sz_bot_7','sz_bot_8','sz_bot_9','sz_bot_10'];
-  const sizes = {};
-  szIds.forEach(id => { const el = document.getElementById(id); if (el) sizes[id] = el.value; });
-
   return {
-    date:       document.getElementById('mini_date').value,
-    building:   document.getElementById('mini_building').value,
-    shop:       document.getElementById('mini_shop').value,
-    sampleno:   document.getElementById('mini_sampleno').value,
-    workno:     document.getElementById('mini_workno').value,
-    rate:       document.getElementById('mini_rate').value,
-    yuan:       document.getElementById('mini_cost_yuan').value,
-    finalPrice: document.getElementById('mini_final').value,
-    memo:       document.getElementById('mini_memo').value,
-    colorCols:  JSON.parse(JSON.stringify(colorCols)),
-    sizeRows:   JSON.parse(JSON.stringify(sizeRows)),
-    orderData:  JSON.parse(JSON.stringify(orderData)),
-    sizes,
-    images:     JSON.parse(JSON.stringify(imgList)),
-    savedAt:    new Date().toISOString()
+    date:         document.getElementById('mini_date').value,
+    building:     document.getElementById('mini_building').value,
+    shop:         document.getElementById('mini_shop').value,
+    sampleno:     document.getElementById('mini_sampleno').value,
+    workno:       document.getElementById('mini_workno').value,
+    material:     document.getElementById('mini_material').value,
+    rate:         document.getElementById('mini_rate').value,
+    yuan:         document.getElementById('mini_cost_yuan').value,
+    finalPrice:   document.getElementById('mini_final').value,
+    memo:         document.getElementById('mini_memo').value,
+    colorCols:    JSON.parse(JSON.stringify(colorCols)),
+    sizeRows:     JSON.parse(JSON.stringify(sizeRows)),
+    orderData:    JSON.parse(JSON.stringify(orderData)),
+    sizeMeasures: getSizeMeasureData(),
+    images:       JSON.parse(JSON.stringify(imgList)),
+    savedAt:      new Date().toISOString()
   };
 }
 
@@ -963,6 +1316,7 @@ function loadEntry(entryId) {
   document.getElementById('mini_shop').value      = data.shop      || '';
   document.getElementById('mini_sampleno').value  = data.sampleno  || '';
   document.getElementById('mini_workno').value    = data.workno    || '';
+  document.getElementById('mini_material').value  = data.material  || '';
   document.getElementById('mini_rate').value      = data.rate      || 225;
   document.getElementById('mini_cost_yuan').value = data.yuan      || '';
   document.getElementById('mini_final').value     = data.finalPrice|| '';
@@ -978,6 +1332,8 @@ function loadEntry(entryId) {
   colCounter = colorCols.length;
   rowCounter = sizeRows.length;
   renderOrderTable();
+
+  restoreSizeMeasureData(data.sizeMeasures || null);
 
   imgList = data.images || []; imgCurrent = 0; renderImgUI();
   calcMini();
@@ -1180,6 +1536,77 @@ function shareEntry(entryId) {
   showShareModal(data);
 }
 
+function buildSizeCardHTML(sizeMeasures) {
+  if (!sizeMeasures || !sizeMeasures.options || !sizeMeasures.options.length) return '';
+
+  const type    = sizeMeasures.type || 'top';
+  const options = sizeMeasures.options;
+  const typeKeys = type === 'set' ? ['set_top','set_bottom'] : [type];
+  const typeLabel = { top:'상의', bottom:'하의', set:'세트', set_top:'상의', set_bottom:'하의' };
+
+  // 유효한 치수가 하나라도 있는지 확인
+  let hasAny = false;
+  options.forEach(opt => {
+    typeKeys.forEach(key => {
+      (opt.measures[key]||[]).forEach(m => { if (m.value) hasAny = true; });
+    });
+  });
+  if (!hasAny) return '';
+
+  let html = `<div style="padding:0 16px;margin-bottom:12px;">
+    <div style="background:#111;color:#C8A96E;font-size:9px;font-weight:700;letter-spacing:1.5px;padding:6px 10px;border-radius:4px 4px 0 0;text-transform:uppercase;">
+      상세 사이즈 — ${typeLabel[type] || type}
+    </div>
+    <div style="border:1px solid #e4e2dc;border-top:none;border-radius:0 0 4px 4px;overflow:hidden;">`;
+
+  // 헤더행: 항목명 | 사이즈1 | 사이즈2 | ...
+  const firstKey = typeKeys[0];
+  const firstRows = options[0].measures[firstKey] || [];
+
+  typeKeys.forEach((key, ki) => {
+    if (ki > 0) {
+      html += `<div style="background:#E4E2DC;font-size:9px;font-weight:700;text-align:center;padding:4px;letter-spacing:0.5px;">${typeLabel[key]}</div>`;
+    }
+
+    // 라벨 목록 수집 (모든 옵션에 걸쳐 합집합)
+    const allLabels = [];
+    options.forEach(opt => {
+      (opt.measures[key]||[]).forEach(m => {
+        if (m.label && !allLabels.includes(m.label)) allLabels.push(m.label);
+      });
+    });
+
+    if (!allLabels.length) return;
+
+    // 테이블 헤더
+    html += `<table style="border-collapse:collapse;width:100%;font-size:10px;">
+      <thead><tr>
+        <th style="background:#f2f1ee;padding:5px 8px;text-align:left;border-bottom:1px solid #e4e2dc;font-size:9px;color:#6B6760;font-weight:700;min-width:70px;">항목</th>`;
+    options.forEach(opt => {
+      html += `<th style="background:#f2f1ee;padding:5px 6px;text-align:center;border-bottom:1px solid #e4e2dc;border-left:1px solid #e4e2dc;font-size:9px;color:#111;font-weight:700;">${escAttr(opt.name||'?')}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    // 데이터 행
+    allLabels.forEach((label, i) => {
+      const bg = i % 2 === 0 ? 'white' : '#fafaf8';
+      html += `<tr style="background:${bg};">
+        <td style="padding:5px 8px;color:#6B6760;font-size:10px;border-bottom:1px solid #f0eeea;">${escAttr(label)}</td>`;
+      options.forEach(opt => {
+        const row = (opt.measures[key]||[]).find(m => m.label === label);
+        const val = row ? row.value : '';
+        html += `<td style="padding:5px 6px;text-align:center;border-bottom:1px solid #f0eeea;border-left:1px solid #e4e2dc;font-weight:${val?'700':'400'};color:${val?'#111':'#ccc'};">${escAttr(val) || '—'}</td>`;
+      });
+      html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+  });
+
+  html += `</div></div>`;
+  return html;
+}
+
 function showShareModal(data) {
   // 기존 모달 제거
   const old = document.getElementById('shareModal');
@@ -1294,6 +1721,9 @@ function showShareModal(data) {
 
     <!-- 오더 수량 테이블 -->
     ${orderTableHTML ? `<div style="padding:0 16px;margin-bottom:12px;">${orderTableHTML}</div>` : ''}
+
+    <!-- 상세 사이즈 치수 -->
+    ${buildSizeCardHTML(data.sizeMeasures)}
 
     <!-- 메모 -->
     ${data.memo ? `
