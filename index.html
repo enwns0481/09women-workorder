@@ -66,8 +66,7 @@
 })();
 </script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display&display=swap');
-
+/* 시스템 폰트 사용 — 오프라인 완전 지원 */
 :root {
   --black: #111111;
   --white: #FAFAF8;
@@ -80,8 +79,8 @@
   --input-bg: #FFFFFF;
   --calc-bg: #FFFBF0;
   --calc-border: #C8A96E;
-  --font-kr: 'Noto Sans KR', sans-serif;
-  --font-display: 'DM Serif Display', serif;
+  --font-kr: -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', sans-serif;
+  --font-display: Georgia, 'Times New Roman', serif;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1237,7 +1236,7 @@ function showShareModal(data) {
   // 공유용 카드 HTML
   const cardHTML = `
   <div id="shareCard" style="
-    width:360px; background:#FAFAF8; font-family:'Noto Sans KR',sans-serif;
+    width:360px; background:#FAFAF8; font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.15);
   ">
     <!-- 헤더 -->
@@ -1450,22 +1449,67 @@ function showToast(msg) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  PWA — Service Worker
+//  PWA — Service Worker (완전 오프라인 지원)
 // ═══════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
   const swCode = `
-const CACHE='wansaip-v2';
-self.addEventListener('install',()=>self.skipWaiting());
-self.addEventListener('activate',e=>e.waitUntil(clients.claim()));
-self.addEventListener('fetch',e=>{
-  if(e.request.url.includes('fonts.google')||e.request.url.includes('fonts.gstatic')){
-    e.respondWith(caches.open(CACHE).then(cache=>
-      fetch(e.request).then(res=>{cache.put(e.request,res.clone());return res;}).catch(()=>caches.match(e.request))
-    ));
-  }
-});`;
-  const blob = new Blob([swCode], {type:'application/javascript'});
-  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+const CACHE = 'wansaip-v3';
+
+// 설치 시 — 현재 페이지 자체를 캐시
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(cache => {
+      return cache.addAll([
+        self.registration.scope,
+        self.registration.scope + 'index.html'
+      ]).catch(() => {});
+    }).then(() => self.skipWaiting())
+  );
+});
+
+// 활성화 시 — 이전 캐시 삭제
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => clients.claim())
+  );
+});
+
+// 요청 가로채기 — 캐시 우선, 없으면 네트워크, 그것도 없으면 캐시에서
+self.addEventListener('fetch', e => {
+  // POST 등 non-GET 요청은 패스
+  if (e.request.method !== 'GET') return;
+
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(res => {
+        // 정상 응답이면 캐시에 저장
+        if (res && res.status === 200 && res.type !== 'opaque') {
+          const clone = res.clone();
+          caches.open(CACHE).then(cache => cache.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match(e.request));
+    })
+  );
+});
+  `;
+  const blob = new Blob([swCode], {type: 'application/javascript'});
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl)
+    .then(reg => {
+      // 새 버전 있으면 즉시 업데이트
+      reg.onupdatefound = () => {
+        reg.installing.onstatechange = function() {
+          if (this.state === 'installed' && navigator.serviceWorker.controller) {
+            showToast('🔄 앱이 업데이트되었습니다');
+          }
+        };
+      };
+    })
+    .catch(() => {});
 }
 
 // ═══════════════════════════════════════════════════════
