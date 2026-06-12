@@ -1250,8 +1250,8 @@ function showShareModal(data) {
 
     <!-- 제품 이미지 -->
     ${data.images && data.images.length ? `
-    <div style="background:#000;text-align:center;max-height:200px;overflow:hidden;">
-      <img src="${data.images[0]}" style="width:100%;max-height:200px;object-fit:contain;" alt="">
+    <div style="background:#000;text-align:center;width:100%;">
+      <img src="${data.images[0]}" style="width:100%;height:auto;display:block;" alt="">
     </div>` : ''}
 
     <!-- 기본 정보 -->
